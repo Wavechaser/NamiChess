@@ -4,6 +4,13 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Project layout — 2026-09-05
+
+- Moved the `namichess` package from the `src` layout to the repository root and
+  updated package discovery.
+- Moved the core product specification under `docs/` and standardized project
+  identifiers and command naming on `namichess`.
+
 ### Documentation — 2026-09-05
 
 - Made the product rating-agnostic through Foundation, Club, and Advanced presets

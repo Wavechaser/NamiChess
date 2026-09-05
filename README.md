@@ -6,7 +6,7 @@ matter, and which sufficiently strong continuation a human can understand and
 keep playing.
 
 The project is in pre-implementation setup. The product definition is in
-[chess-copilot-spec.md](chess-copilot-spec.md).
+[docs/chess-copilot-spec.md](docs/chess-copilot-spec.md).
 
 ## Current state
 
@@ -66,7 +66,7 @@ and exports use distinct user-confirmed paths.
 
 ## Documentation
 
-- [Product specification](chess-copilot-spec.md)
+- [Product specification](docs/chess-copilot-spec.md)
 - [Features](docs/FEATURES.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Defense](docs/DEFENSE.md)

@@ -349,7 +349,7 @@ profiling demonstrates a need for process workers; do not assume Python threads
 accelerate CPU-bound analysis.
 
 User-facing explanation prose lives in the bundled UTF-8 catalog
-`src/namichess/content/explanations.json`. Analysis emits stable explanation IDs,
+`namichess/content/explanations.json`. Analysis emits stable explanation IDs,
 typed values, facts, and evidence. The catalog contains text templates only, so
 copy can change independently without becoming chess policy or executable code.
 

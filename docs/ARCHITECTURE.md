@@ -91,7 +91,7 @@ visible fallback while preserving the invalid file for recovery.
 
 Analysis returns structured facts, evidence, a stable explanation identifier,
 and typed values. User-facing prose is resolved from a bundled UTF-8 catalog at
-`src/namichess/content/explanations.json`. Editing that catalog changes wording
+`namichess/content/explanations.json`. Editing that catalog changes wording
 without changing Python analysis code.
 
 The catalog contains text templates only. It cannot contain chess policy,

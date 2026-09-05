@@ -11,19 +11,19 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 
 ## Directory Conventions
 
-- `src/namichess/domain/`: typed chess facts and rules. It may use
+- `namichess/domain/`: typed chess facts and rules. It may use
   `python-chess` but never imports engines, persistence, web, GUI, or operating-
   system adapters.
-- `src/namichess/analysis/`: static analyzers, Stockfish integration, search
+- `namichess/analysis/`: static analyzers, Stockfish integration, search
   scheduling, and verified explanation evidence. It imports `domain`.
-- `src/namichess/application/`: use cases that compose analysis, training, and
+- `namichess/application/`: use cases that compose analysis, training, and
   persistence. This is the only layer where independent analysis components
   meet.
-- `src/namichess/interfaces/`: CLI, local API, web frontend assets, and optional
+- `namichess/interfaces/`: CLI, local API, web frontend assets, and optional
   Windows shell. Interfaces render application views and own no chess policy.
-- `src/namichess/content/`: bundled, editable explanation text keyed by stable
+- `namichess/content/`: bundled, editable explanation text keyed by stable
   identifiers. Content files contain no chess policy or executable expressions.
-- `src/namichess/composition.py`: the sole composition root; it may import all
+- `namichess/composition.py`: the sole composition root; it may import all
   layers to wire concrete engines, storage, and interfaces.
 - `tests/`: pytest tests mirroring package boundaries. Reusable FEN/PGN inputs
   and expected facts live under `tests/fixtures/`.
@@ -31,6 +31,9 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - `.tools/`: ignored machine-local tools such as Stockfish; never package or
   commit these binaries.
 - User and development data never lives in the source tree.
+- Use `namichess` for package names, modules, variables, and CLI commands, and
+  `NamiChess` for display text. Do not introduce alternate hyphenated,
+  underscored, or casing variants without an external compatibility requirement.
 
 ## Analysis Invariants
 
@@ -107,6 +110,7 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 ## Documentation
 
 - `README.md` is the setup guide and documentation index.
+- `docs/chess-copilot-spec.md` owns the core product specification.
 - `docs/FEATURES.md` owns current and planned product behavior.
 - `docs/ARCHITECTURE.md` owns durable boundaries, data flow, and invariants.
 - `docs/DEFENSE.md` owns the deliberately narrow trust and non-goal model.
