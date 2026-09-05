@@ -1,10 +1,11 @@
 import asyncio
 import io
 
+import pytest
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
-from namichess.application.session import Session
+from namichess.application.session import Session, SessionError
 from namichess.interfaces.cli import execute, run_cli
 
 
@@ -25,6 +26,41 @@ def test_cli_games_lists_fen_as_one_game() -> None:
     execute(session, "fen 7k/8/8/8/8/8/8/K7 w - - 0 1")
     output, _ = execute(session, "games")
     assert "* 1:" in output
+
+
+def test_cli_inspect_distinguishes_geometric_attack_from_legal_access() -> None:
+    session = Session()
+    execute(session, "fen k3r3/8/8/8/8/8/4N3/4K3 w - - 0 1")
+    output, _ = execute(session, "inspect c3")
+    assert "Geometric attackers: e2 white knight" in output
+    assert "Legal access (white to move): none" in output
+    assert "Absolute pins: e2 white knight" in output
+
+
+def test_cli_inspect_uses_current_square_for_a_moved_pinned_piece() -> None:
+    session = Session()
+    execute(session, "fen k3r3/8/8/8/8/2N5/8/4K3 w - - 0 1")
+    execute(session, "move Ne2")
+    output, _ = execute(session, "inspect d4")
+    assert "Geometric attackers: e2 white knight" in output
+    assert "Absolute pins: e2 white knight" in output
+    assert "c3 white knight" not in output
+
+
+def test_cli_inspect_uses_current_promoted_piece_type() -> None:
+    session = Session()
+    execute(session, "fen 4k3/P7/8/8/8/8/8/4K3 w - - 0 1")
+    execute(session, "move a8=Q")
+    output, _ = execute(session, "inspect b7")
+    assert "Geometric attackers: a8 white queen" in output
+    assert "white pawn" not in output
+
+
+def test_cli_inspect_rejects_invalid_square() -> None:
+    session = Session()
+    execute(session, "fen 7k/8/8/8/8/8/8/K7 w - - 0 1")
+    with pytest.raises(SessionError, match="inspect requires a square from a1 to h8"):
+        execute(session, "inspect z9")
 
 
 def test_cli_load_accepts_a_quoted_windows_path_with_spaces(tmp_path) -> None:

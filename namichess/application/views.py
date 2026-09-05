@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from namichess.analysis.static import MoveDelta, PositionFacts
 from namichess.domain.models import PiecePlacement, PositionContext
 
 
@@ -32,6 +33,8 @@ class SessionView:
     selected_game: int
     selected_ply: int
     position: PositionContext
+    facts: PositionFacts
+    previous_move: MoveDelta | None
     pieces: tuple[PiecePlacement, ...]
     board_rows: tuple[str, ...]
     turn: str

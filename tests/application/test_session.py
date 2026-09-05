@@ -64,3 +64,19 @@ def test_unavailable_navigation_is_actionable() -> None:
     session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")
     with pytest.raises(SessionError, match="end"):
         session.next()
+
+
+def test_shared_view_exposes_position_facts_and_previous_move_delta() -> None:
+    session = Session()
+    root = session.load_fen("k3r3/8/8/8/8/8/4N3/4K3 w - - 0 1")
+    knight = next(piece for piece in root.facts.pieces if piece.square == "e2")
+    assert any(pin.piece == knight.piece_id for pin in root.facts.pins)
+    assert any(attack.attacker == knight.piece_id and attack.target.square == "c3" for attack in root.facts.attacks)
+    assert not any(move.mover == knight.piece_id and move.target.square == "c3" for move in root.facts.legal_moves)
+    assert root.previous_move is None
+
+    moved = session.play("Kd2")
+    assert moved.previous_move is not None
+    assert moved.previous_move.uci == "e1d2"
+    assert moved.previous_move.before == root.facts.position_id
+    assert moved.previous_move.after == moved.facts.position_id

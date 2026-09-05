@@ -4,6 +4,13 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Shared static position facts — 2026-09-06
+
+- Added identity-bearing geometric attacks, actual-side legal moves, absolute
+  pins, check facts, and reconstructable move deltas to shared session views.
+- Added `inspect <square>` rendering from the shared facts, preserving the
+  distinction between geometric attack and legal access.
+
 ### PGN/FEN CLI navigation — 2026-09-06
 
 - Added strict, bounded PGN and FEN import with composed-material support,

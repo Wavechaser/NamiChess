@@ -33,6 +33,9 @@ immutable `PositionContext`, `SessionView`, `PositionFacts`, `MoveDelta`,
 `AnalysisPolicy`, `AnalysisResult`, and `Explanation` values. These carry stable
 position, piece, square, move, request, revision, and evidence references. They
 never expose mutable boards, PGN nodes, UCI processes, or terminal styling.
+Each selected `SessionView` contains its `PositionFacts` and, when the selected
+node has a parent, the `MoveDelta` from that parent. Interfaces filter these
+shared facts for inspection; they do not reconstruct a board or run chess rules.
 
 ## 2. Analysis flow
 
@@ -68,6 +71,12 @@ Analysis starts with the user-selected candidate breadth and verification effort
 Critical, unstable, sacrificial, or shallow/deep-disputed claims receive deeper
 probes. Long forcing lines may remain legible; opaque branches switch to plans,
 triggers, and durable routes. Unsearched moves remain unknown.
+
+In the implemented static layer, attacks are geometric contacts for both colors,
+while legal moves belong only to the position's actual side to move. Absolute
+pins are explicit identity-bearing facts. Move deltas contain only recomputed
+before/after facts, including separately labeled slider attack changes; none of
+these values alone claims safety or tactical ownership.
 
 For M1, policy is fixed rather than user-configurable: one engine and thread,
 64 MiB hash, and five seconds per request. One second surveys up to five root

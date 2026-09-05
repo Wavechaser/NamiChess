@@ -5,8 +5,9 @@ purpose is to explain what a position permits, what a move changes, which threat
 matter, and which sufficiently strong continuation a human can understand and
 keep playing.
 
-The project is implementing its first milestone. Strict PGN/FEN import and
-interactive CLI navigation are available; analysis checkpoints remain in progress. The product definition is in
+The project is implementing its first milestone. Strict PGN/FEN import,
+interactive CLI navigation, and shared static board facts are available;
+engine-backed analysis remains in progress. The product definition is in
 [docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and the decision-complete
 milestone gates are in [docs/M1-PLAN.md](docs/M1-PLAN.md).
 
@@ -18,8 +19,9 @@ milestone gates are in [docs/M1-PLAN.md](docs/M1-PLAN.md).
 - Product, architecture, feature, defense, and defect documents established.
 - MPChess SVG pieces bundled for the future board interface.
 - M1 can strictly load and navigate PGN/FEN positions, including composed
-  standard-chess positions with unusual material. Stockfish analysis is the
-  next runtime checkpoint.
+  standard-chess positions with unusual material. Shared views expose geometric
+  attacks, actual-side legal moves, absolute pins, and the previous move delta;
+  `inspect <square>` renders those facts. Stockfish analysis remains in progress.
 
 ## Requirements
 

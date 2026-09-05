@@ -1,6 +1,6 @@
 # M1 — Interactive CLI Position Analysis
 
-**Status:** M1-01 and M1-02 complete; M1-03 and M1-04 under review
+**Status:** M1-01 through M1-03 complete; M1-04 and M1-05 integration in progress
 **Last updated:** 2026-09-06
 
 This document owns M1's implementation sequence, acceptance gates, recorded
@@ -152,7 +152,7 @@ immediately. Ctrl+C cancels active analysis and otherwise clears input.
 |---|---|---|---|---|
 | M1-01 | Consistent documentation and contracts | — | Contract cross-check; baseline suite | complete |
 | M1-02 | Navigable CLI session for validated PGN/FEN | M1-01 | Parser fixtures; session transcripts | complete |
-| M1-03 | Correct shared board facts and move changes | M1-02 | Structured mirrored fixtures | pending |
+| M1-03 | Correct shared board facts and move changes | M1-02 | Structured mirrored fixtures | complete |
 | M1-04 | Bounded, cancelable persistent engine analysis | M1-02 | Fake lifecycle tests; real Stockfish | pending |
 | M1-05 | Evidence-backed comparisons and tactical explanations | M1-03, M1-04 | Counterexample fixtures | pending |
 | M1-06 | Complete text/JSON analysis workflow | M1-05 | Consumer tests; Windows check | pending |
@@ -332,10 +332,17 @@ scope expansion, and unresolved regression risks.
 
 ## Resumption state
 
-- Current checkpoint: M1-03; M1-04 adapter review proceeds independently.
+- Current checkpoint: M1-04; M1-05 evidence review proceeds independently.
 - Completed checkpoints: M1-01 (`7f15bd6`) and M1-02 passed baseline verification
   and independent adversarial review; the root agent records checkpoint commits.
-- Remaining implementation checkpoints: M1-03 through M1-06 pending.
+- Remaining implementation checkpoints: M1-04 through M1-06.
+- M1-03 evidence: shared session views expose `PositionFacts` and an optional
+  prior-ply `MoveDelta`; `inspect <square>` filters those facts without board
+  reconstruction. A pinned-knight consumer fixture distinguishes its geometric
+  attack from absent legal access and exposes the relevant absolute pin. Focused
+  static, session, and CLI tests pass. Independent static review found no remaining
+  defects; consumer review fixed current-square/type labels for moved and promoted
+  pieces, with regressions. Full working-tree suite: 86 passed, 1 guarded-engine skip.
 - M1-02 evidence: strict import, session, native file boundary, and CLI tests pass.
   Independent review's oversized-counter and normalization findings have focused
   regressions. The root verified PowerShell interactive help, invalid-FEN rejection,
@@ -354,8 +361,8 @@ scope expansion, and unresolved regression risks.
 - Stockfish evidence: the composed-position, PGN-start, terminal, and cancellation
   probes above were completed during planning; M1-04 must preserve them as
   reproducible integration tests.
-- Next action: complete M1-03 static integration and M1-04 lifecycle review, then
-  land their separate checkpoint commits before the M1-05 candidate workflow.
+- Next action: commit the reviewed engine adapter, resolve M1-05 evidence findings,
+  and connect the shared request lifecycle to the CLI before closing M1-04 through M1-06.
 - Artifact locations: repository documentation and tests; planning probes are
   recorded here until M1-04 turns them into reproducible integration tests.
 - Blockers: none. Pytest cache permissions are an environment limitation.

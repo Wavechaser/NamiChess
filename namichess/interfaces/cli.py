@@ -6,6 +6,7 @@ import asyncio
 import sys
 from typing import TextIO
 
+import chess
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application.current import create_app_session
 from prompt_toolkit.input import Input
@@ -17,6 +18,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from namichess.application.imports import ImportError as ChessImportError
 from namichess.application.session import Session, SessionError
 from namichess.application.views import SessionView
+from namichess.domain.models import PiecePlacement
 from namichess.interfaces.files import read_chess_file
 
 MAX_COMMAND_CHARS = 16 * 1024
@@ -48,6 +50,46 @@ def render_games(view: SessionView) -> str:
     return "\n".join(lines)
 
 
+def render_inspection(view: SessionView, square: str) -> str:
+    placements = {piece.piece_id: piece for piece in view.facts.pieces}
+    occupant = next((piece for piece in view.facts.pieces if piece.square == square), None)
+    attacks = tuple(attack for attack in view.facts.attacks if attack.target.square == square)
+    access = tuple(move for move in view.facts.legal_moves if move.target.square == square)
+    pins = tuple(
+        pin
+        for pin in view.facts.pins
+        if pin.piece == (occupant.piece_id if occupant else None)
+        or any(attack.attacker == pin.piece for attack in attacks)
+        or any(reference.square == square for reference in pin.ray)
+    )
+    lines = [f"Square: {square}"]
+    lines.append(f"Occupant: {_piece_label(occupant) if occupant else 'none'}")
+    lines.append(
+        "Geometric attackers: "
+        + (", ".join(_piece_label(placements[attack.attacker]) for attack in attacks) or "none")
+    )
+    lines.append(
+        f"Legal access ({view.facts.turn} to move): "
+        + (", ".join(f"{move.uci} {_piece_label(placements[move.mover])}" for move in access) or "none")
+    )
+    lines.append(
+        "Absolute pins: "
+        + (
+            ", ".join(
+                f"{_piece_label(placements[pin.piece])} along "
+                + "-".join(reference.square for reference in pin.ray)
+                for pin in pins
+            )
+            or "none"
+        )
+    )
+    return "\n".join(lines)
+
+
+def _piece_label(piece: PiecePlacement) -> str:
+    return f"{piece.square} {piece.color} {piece.piece_type}"
+
+
 def execute(session: Session, command: str) -> tuple[str, bool]:
     if len(command) > MAX_COMMAND_CHARS:
         raise SessionError(f"command exceeds {MAX_COMMAND_CHARS} characters")
@@ -72,6 +114,12 @@ def execute(session: Session, command: str) -> tuple[str, bool]:
         return render_board(session.select_game(_positive_int(argument, "game"))), False
     if verb == "board":
         return render_board(session.view()), False
+    if verb == "inspect":
+        try:
+            square = chess.square_name(chess.parse_square(argument.lower()))
+        except ValueError as exc:
+            raise SessionError("inspect requires a square from a1 to h8") from exc
+        return render_inspection(session.view(), square), False
     if verb == "start":
         return render_board(session.start()), False
     if verb == "end":
@@ -98,7 +146,8 @@ def execute(session: Session, command: str) -> tuple[str, bool]:
     if verb == "help":
         return (
             "load <path> | fen <FEN> | games | game <n> | board | start | end | "
-            "next | back | goto <ply> | variations | variation <n> | move <SAN-or-UCI> | quit"
+            "next | back | goto <ply> | variations | variation <n> | move <SAN-or-UCI> | "
+            "inspect <square> | quit"
         ), False
     if not verb:
         return "", False

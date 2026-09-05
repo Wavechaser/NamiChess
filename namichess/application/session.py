@@ -7,6 +7,7 @@ import itertools
 import chess
 import chess.pgn
 
+from namichess.analysis.static import move_delta, position_facts
 from namichess.application.imports import (
     ImportedDocument,
     import_fen_text,
@@ -14,7 +15,6 @@ from namichess.application.imports import (
 )
 from namichess.application.views import GameSummary, PositionStatus, SessionView
 from namichess.domain.models import PositionContext
-from namichess.domain.position import replay_position
 
 
 class SessionError(ValueError):
@@ -134,19 +134,11 @@ class Session:
         node = self._require_node()
         game = document.games[self._game_index]
         board = node.board()
-        path = _node_path(node)
-        moves = tuple(ancestor.move.uci() for ancestor in _node_chain(node)[1:])
-        starting = game.board().fen(en_passant="fen")
-        context = PositionContext(
-            document_id=self._document_id,
-            game_number=self._game_index + 1,
-            node_path=path,
-            starting_fen=starting,
-            moves=moves,
-            current_fen=board.fen(en_passant="fen"),
-            has_history=document.has_history,
-        )
-        _, placements = replay_position(context)
+        context = self._context(node)
+        facts = position_facts(context)
+        previous_move = None
+        if node.parent is not None:
+            previous_move = move_delta(self._context(node.parent), context)
         summaries = tuple(
             GameSummary(
                 number=index + 1,
@@ -163,7 +155,9 @@ class Session:
             selected_game=self._game_index + 1,
             selected_ply=node.ply() - game.ply(),
             position=context,
-            pieces=placements,
+            facts=facts,
+            previous_move=previous_move,
+            pieces=facts.pieces,
             board_rows=_board_rows(board),
             turn="white" if board.turn else "black",
             status=_position_status(board),
@@ -171,6 +165,20 @@ class Session:
             can_claim_fifty_moves=board.can_claim_fifty_moves(),
             can_claim_threefold_repetition=board.can_claim_threefold_repetition(),
             variations=variations,
+        )
+
+    def _context(self, node: chess.pgn.GameNode) -> PositionContext:
+        document = self._require_document()
+        game = document.games[self._game_index]
+        board = node.board()
+        return PositionContext(
+            document_id=self._document_id,
+            game_number=self._game_index + 1,
+            node_path=_node_path(node),
+            starting_fen=game.board().fen(en_passant="fen"),
+            moves=tuple(ancestor.move.uci() for ancestor in _node_chain(node)[1:]),
+            current_fen=board.fen(en_passant="fen"),
+            has_history=document.has_history,
         )
 
     def _select(self, game_index: int, node: chess.pgn.GameNode) -> SessionView:

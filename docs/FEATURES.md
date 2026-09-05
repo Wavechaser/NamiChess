@@ -1,7 +1,7 @@
 # NamiChess Features
 
-Status: M1 implementation. Strict PGN/FEN import and interactive navigation are
-implemented; static and engine-backed analysis checkpoints remain in progress.
+Status: M1 implementation. Strict PGN/FEN import, interactive navigation, and
+shared static facts are implemented; engine-backed analysis remains in progress.
 
 ## First milestone
 
@@ -16,6 +16,12 @@ M1 includes narrow threat reporting for checks, immediate mates, captures, legal
 replies, and consequences in analyzed lines. Comprehensive threat assessment,
 practical-best ranking, active recall, training, GUI overlays, SEE, persistence,
 and export are deferred. Syzygy integration and redistribution are excluded.
+
+Static inspection reports the occupant of a square, every piece that attacks it
+geometrically, moves by the actual side to move that legally reach it, and
+relevant absolute pins. Geometric attack does not imply legal access or safety.
+After a move, the shared view also exposes identity-bearing placement, capture,
+promotion, castling-rook, attack, slider-ray, pin, and check changes.
 
 ## Product aim
 
