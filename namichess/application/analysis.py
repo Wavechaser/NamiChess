@@ -86,15 +86,20 @@ class AnalysisController:
     def __init__(self, engine: AnalysisEngine, *, policy: AnalysisPolicy = AnalysisPolicy(), monotonic: Callable[[], float] = time.monotonic) -> None:
         self._engine, self._policy, self._clock = engine, policy, monotonic
         self._worker: asyncio.Task[None] | None = None
+        self._active_run: asyncio.Task[AnalysisResult] | None = None
         self._pending: tuple[int, int, PositionContext, tuple[str, ...]] | None = None
         self._superseded = asyncio.Event()
         self._idle = asyncio.Event()
         self._idle.set()
         self._request = 0
+        self._closed = False
+        self._close_task: asyncio.Task[None] | None = None
         self.latest: AnalysisResult | None = None
         self.progress: EngineProgress | None = None
 
     def submit(self, context: PositionContext, revision: int, compare: tuple[str, ...] = ()) -> int:
+        if self._closed:
+            raise RuntimeError("analysis controller is closed")
         self._request += 1
         item = (self._request, revision, context, compare)
         self.latest = AnalysisResult(self._request, revision, AnalysisState.RUNNING)
@@ -111,33 +116,54 @@ class AnalysisController:
         return self.latest
 
     async def cancel(self) -> None:
-        if self._worker is None:
+        request_id = self._request
+        active = self._active_run
+        if self._worker is None and active is None:
             return
         self._pending = None
         self._superseded.set()
-        await self._engine.cancel()
-        if self._worker is not None and self._worker is not asyncio.current_task():
-            await asyncio.shield(self._worker)
-        if self.latest is not None:
+        if active is not None:
+            await self._engine.cancel()
+            if active is not asyncio.current_task():
+                await asyncio.shield(active)
+        if self.latest is not None and self.latest.request_id == request_id:
             self.latest = replace(self.latest, state=AnalysisState.CANCELED)
 
     async def close(self) -> None:
+        if self._close_task is not None:
+            await asyncio.shield(self._close_task)
+            return
+        self._closed = True
+        request_id = self._request
         self._pending = None
         self._superseded.set()
+        self._close_task = asyncio.create_task(self._close(request_id))
+        await asyncio.shield(self._close_task)
+
+    async def _close(self, request_id: int) -> None:
         await self._engine.cancel()
         if self._worker is not None and self._worker is not asyncio.current_task():
             await asyncio.shield(self._worker)
         await self._engine.close()
+        if (
+            self.latest is not None
+            and self.latest.request_id == request_id
+            and self.latest.state is AnalysisState.RUNNING
+        ):
+            self.latest = replace(self.latest, state=AnalysisState.CANCELED)
 
     async def _work(self) -> None:
         try:
             while self._pending is not None:
                 item, self._pending = self._pending, None
                 self._superseded.clear()
-                result = await self._run(*item)
+                self._active_run = asyncio.create_task(self._run(*item))
+                result = await self._active_run
+                self._active_run = None
                 if item[0] == self._request:
                     self.latest = result
         finally:
+            self._active_run = None
             self._worker = None
             self._idle.set()
 

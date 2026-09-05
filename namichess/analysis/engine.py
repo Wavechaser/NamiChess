@@ -339,18 +339,14 @@ class StockfishAdapter:
         self._transport = None
         self._protocol = None
         try:
-            transport, protocol = await asyncio.wait_for(
-                self._opener(self._command), self._startup_timeout_seconds
-            )
-            await asyncio.wait_for(
-                protocol.configure(self._options), self._startup_timeout_seconds
-            )
+            async with asyncio.timeout(self._startup_timeout_seconds):
+                transport, protocol = await self._opener(self._command)
+                self._transport = transport
+                self._protocol = protocol
+                await protocol.configure(self._options)
         except BaseException:
-            if "transport" in locals():
-                transport.terminate()
+            await self._terminate_owned_process()
             raise
-        self._transport = transport
-        self._protocol = protocol
         return protocol
 
     async def _terminate_owned_process(self) -> None:

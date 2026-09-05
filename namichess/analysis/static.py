@@ -20,6 +20,7 @@ class Attack:
 @dataclass(frozen=True, slots=True)
 class LegalMove:
     uci: str
+    san: str
     mover: PieceId
     source: SquareRef
     target: SquareRef
@@ -57,6 +58,7 @@ class PlacementChange:
 @dataclass(frozen=True, slots=True)
 class MoveDelta:
     uci: str
+    san: str
     before: PositionId
     after: PositionId
     moved: PlacementChange
@@ -157,6 +159,7 @@ def move_delta(before_context: PositionContext, after_context: PositionContext) 
     after_types = {item.piece_id: item.piece_type for item in after.pieces}
     return MoveDelta(
         uci=uci,
+        san=legal.san,
         before=before.position_id,
         after=after.position_id,
         moved=moved,
@@ -190,6 +193,7 @@ def _legal_move(
         castling_rook = by_square[rook_square].piece_id
     return LegalMove(
         uci=move.uci(),
+        san=board.san(move),
         mover=by_square[move.from_square].piece_id,
         source=SquareRef(pid, chess.square_name(move.from_square)),
         target=SquareRef(pid, chess.square_name(move.to_square)),

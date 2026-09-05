@@ -1,12 +1,48 @@
 import asyncio
+import dataclasses
 import io
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
 from namichess.application.session import Session, SessionError
-from namichess.interfaces.cli import execute, run_cli
+from namichess.analysis.engine import EngineCandidate, EngineProgress, EngineReport, EngineScore, EngineStatus, ScoreBound
+from namichess.analysis.evidence import Evidence, Explanation, LineConsequence
+from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult, Coverage
+from namichess.domain.models import PieceId, SquareRef
+from namichess.interfaces.explanations import ExplanationCatalog
+from namichess.interfaces.cli import execute, execute_async, render_analysis, render_details, render_json, run_cli
+
+
+CATALOG = ExplanationCatalog.load(Path(__file__).parents[2] / "namichess" / "content" / "explanations.json")
+
+
+class ImmediateEngine:
+    def __init__(self):
+        self.prepares = 0
+
+    async def prepare(self):
+        self.prepares += 1
+        return "fixture"
+
+    async def analyze(self, position, policy, *, progress=None):
+        move = policy.root_moves[0] if policy.root_moves else "a1a2"
+        return EngineReport(
+            EngineStatus.COMPLETED,
+            (EngineCandidate(EngineScore(0, None, None, ScoreBound.EXACT), (move,), 8, 12, 0.01),),
+        )
+
+    async def cancel(self):
+        pass
+
+    async def close(self):
+        pass
 
 
 def test_cli_fen_board_move_and_navigation_transcript() -> None:
@@ -17,6 +53,7 @@ def test_cli_fen_board_move_and_navigation_transcript() -> None:
     assert not done
     output, _ = execute(session, "move Ka2")
     assert "Turn: black" in output
+    assert "Changed: Ka2 — white king a1→a2" in output
     output, _ = execute(session, "back")
     assert "Turn: white" in output
 
@@ -98,3 +135,225 @@ def test_invalid_large_counter_keeps_session_and_cli_running() -> None:
     assert "correct the FEN and reload" in stderr.getvalue()
     assert stdout.getvalue().count("Turn: white") == 2
     assert session.view().revision == 1
+
+
+def test_text_and_json_share_current_analysis_candidate() -> None:
+    session = Session()
+    view = session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")
+    capture = Explanation("capture", "line.capture", (("san", "Kxa2"), ("material_delta_white", 1)))
+    mate = Explanation("mate", "candidate.allows_opponent_mate_in_one", (("reply_count", 1),))
+    candidate = CandidateResult(
+        "candidate:a1a2", view.position.position_id, "a1a2", "Ka2", "white", 1,
+        EngineScore(0, None, None, ScoreBound.EXACT), ("a1a2",), False, ("capture", "mate"), (),
+    )
+    result = AnalysisResult(
+        1, view.revision, AnalysisState.COMPLETED, (candidate,), (capture, mate),
+        coverage=Coverage(1, 1, 1, False),
+    )
+    shared = dataclasses.replace(view, analysis=result)
+    text = render_analysis(result, CATALOG)
+    payload = json.loads(render_json(shared))
+    assert "Ka2" in text and "+0.00" in text
+    assert "Fact: [Ka2] After this candidate" in text
+    assert text.split("#  Rank", 1)[1].count("After this candidate") == 1
+    assert payload["schema_version"] == 1
+    assert payload["analysis"]["candidates"][0]["candidate_id"] == "candidate:a1a2"
+    assert payload["analysis"]["candidates"][0]["score"]["centipawns"] == 0
+    assert payload["analysis"]["candidates"][0]["score"]["mate"] is None
+    assert payload["session"]["facts"]["legal_moves"][0]["san"]
+
+
+def test_redirected_input_waits_for_latest_analysis_and_closes() -> None:
+    async def exercise() -> tuple[str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        controller = AnalysisController(ImmediateEngine())
+        commands = io.StringIO("fen 7k/8/8/8/8/8/8/R6K w - - 0 1\n")
+        await run_cli(Session(), controller=controller, catalog=CATALOG, stdin=commands, stdout=stdout, stderr=stderr)
+        return stdout.getvalue(), stderr.getvalue()
+
+    stdout, stderr = asyncio.run(exercise())
+    assert "Analysis: running" in stdout
+    assert "Analysis: completed" in stdout
+    assert "Ra2" in stdout
+    assert stderr == ""
+
+
+def test_compare_resolves_san_and_uci_without_moving_session() -> None:
+    session = Session()
+    before = session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")
+    assert session.resolve_moves(("Ka2", "a1b1")) == ("a1a2", "a1b1")
+    assert session.view().position == before.position
+
+
+def test_over_32_piece_snapshot_keeps_static_facts_and_explains_unsupported_analysis() -> None:
+    async def exercise():
+        stdout = io.StringIO()
+        engine = ImmediateEngine()
+        controller = AnalysisController(engine)
+        fen = "NNNNNNNk/NNNNN1NN/NNNNNN1N/NNNNNNNN/NN6/8/8/K7 w - - 0 1"
+        await run_cli(
+            Session(), controller=controller, catalog=CATALOG,
+            stdin=io.StringIO(f"fen {fen}\njson\n"), stdout=stdout, stderr=io.StringIO(),
+        )
+        return stdout.getvalue(), engine.prepares
+
+    output, prepares = asyncio.run(exercise())
+    assert "engine analysis supports at most 32 occupied squares" in output
+    assert '"pieces": [' in output
+    assert prepares == 0
+
+
+def test_unranked_candidate_remains_accessible_by_stable_display_number() -> None:
+    session = Session()
+    view = session.load_fen("7k/8/8/8/8/8/8/R6K w - - 0 1")
+    candidate = CandidateResult(
+        "candidate:a1a2", view.position.position_id, "a1a2", "Ra2", "white", None,
+        None, (), True, (), (),
+    )
+    result = AnalysisResult(3, view.revision, AnalysisState.RUNNING, (candidate,))
+    assert "Candidate 1: Ra2 (a1a2)" in render_details(result, 1, CATALOG)
+
+
+def test_details_render_recapture_promotion_and_material_change() -> None:
+    session = Session()
+    view = session.load_fen("7k/P7/8/8/8/8/8/7K w - - 0 1")
+    piece = PieceId(view.position.document_id, 1, "a7", "white", "pawn")
+    captured = PieceId(view.position.document_id, 1, "a8", "black", "rook")
+    consequence = LineConsequence(
+        1, view.position.position_id, "a7a8q", "a8=Q+", piece,
+        SquareRef(view.position.position_id, "a7"), SquareRef(view.position.position_id, "a8"),
+        "white", "pawn", True, captured, SquareRef(view.position.position_id, "a8"),
+        "black", "rook", True, "queen", 13,
+    )
+    evidence = Evidence(
+        "e1", "engine_line", ("a7a8q",), ("a8=Q+",), consequences=(consequence,),
+        engine_elapsed_seconds=0.25, score=EngineScore(100, None, None, ScoreBound.EXACT),
+    )
+    candidate = CandidateResult(
+        "candidate:a7a8q", view.position.position_id, "a7a8q", "a8=Q+", "white", 1,
+        EngineScore(100, None, None, ScoreBound.EXACT), ("a7a8q",), False, (), ("e1",),
+    )
+    result = AnalysisResult(1, view.revision, AnalysisState.COMPLETED, (candidate,), evidence=(evidence,))
+    output = render_details(result, 1, CATALOG)
+    assert "recapture" in output
+    assert "promotes to queen" in output
+    assert "White material change +13" in output
+    assert "gives check" in output
+    assert "Probe score: +1.00" in output
+    assert "Continuation: 1. a8=Q+" in output
+    assert "elapsed=0.25s" in output
+
+
+def test_current_facts_include_mate_moves_checker_coordinates_and_failure_recovery() -> None:
+    session = Session()
+    view = session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")
+    mate_evidence = Evidence("mates", "legal_mate_in_one", alternative_san_lines=(("Qg7#",), ("Qf8#",)))
+    mate = Explanation("mate", "position.mate_in_one", evidence_refs=("mates",))
+    check = Explanation(
+        "check", "position.in_check", squares=(SquareRef(view.position.position_id, "f7"),),
+    )
+    completed = AnalysisResult(
+        1, view.revision, AnalysisState.COMPLETED, explanations=(mate, check), evidence=(mate_evidence,),
+    )
+    output = render_analysis(completed, CATALOG)
+    assert "Moves: Qg7#, Qf8#." in output
+    assert "Checkers: f7." in output
+
+    failed = AnalysisResult(2, view.revision, AnalysisState.FAILED, message="file not found")
+    failure = render_analysis(failed, CATALOG)
+    assert "--engine executable path" in failure
+    assert "run analyze to retry" in failure
+    assert "Board navigation remains available" in failure
+
+
+def test_awaited_cancel_cannot_cancel_the_next_position_request() -> None:
+    class CancelEngine(ImmediateEngine):
+        def __init__(self):
+            super().__init__()
+            self.release = asyncio.Event()
+            self.cancels = 0
+
+        async def analyze(self, position, policy, *, progress=None):
+            await self.release.wait()
+            return await super().analyze(position, policy, progress=progress)
+
+        async def cancel(self):
+            self.cancels += 1
+            self.release.set()
+
+    async def exercise():
+        session = Session()
+        engine = CancelEngine()
+        controller = AnalysisController(engine)
+        await execute_async(
+            session, "fen 7k/8/8/8/8/8/8/R6K w - - 0 1",
+            controller=controller, catalog=CATALOG,
+        )
+        await asyncio.sleep(0)
+        await execute_async(session, "cancel", controller=controller, catalog=CATALOG)
+        await execute_async(
+            session, "fen 7k/8/8/8/8/8/8/R6K w - - 0 1",
+            controller=controller, catalog=CATALOG,
+        )
+        result = await controller.wait()
+        assert result is not None
+        assert result.revision == session.view().revision
+        assert result.state is AnalysisState.COMPLETED
+        assert engine.cancels >= 1
+        await controller.close()
+
+    asyncio.run(exercise())
+
+
+def test_progress_output_preserves_partially_typed_interactive_command() -> None:
+    class ProgressEngine(ImmediateEngine):
+        async def analyze(self, position, policy, *, progress=None):
+            candidate = EngineCandidate(EngineScore(0, None, None, ScoreBound.EXACT), ("a1a2",), 8, 12, 0.01)
+            if progress is not None:
+                progress(EngineProgress((candidate,), 0.1))
+            await asyncio.sleep(0.35)
+            return EngineReport(EngineStatus.COMPLETED, (candidate,))
+
+    async def exercise() -> tuple[str, str]:
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with create_pipe_input() as pipe:
+            async def type_commands() -> None:
+                pipe.send_text("fen 7k/8/8/8/8/8/8/R6K w - - 0 1\nbo")
+                await asyncio.sleep(0.4)
+                pipe.send_text("ard\n")
+                await asyncio.sleep(0.5)
+                pipe.send_text("quit\n")
+
+            writer = asyncio.create_task(type_commands())
+            await run_cli(
+                Session(), controller=AnalysisController(ProgressEngine()), catalog=CATALOG,
+                stdout=stdout, stderr=stderr, prompt_input=pipe, prompt_output=DummyOutput(),
+            )
+            await writer
+        return stdout.getvalue(), stderr.getvalue()
+
+    stdout, stderr = asyncio.run(exercise())
+    assert stdout.count("Turn: white") >= 2
+    assert 1 <= stderr.count("Analysis progress:") <= 4
+
+
+def test_native_process_reconfigures_cp1252_standard_streams_to_utf8() -> None:
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "cp1252"
+    commands = (
+        "fen 7k/8/8/8/8/8/8/K7 w - - 0 1\n"
+        "move Ka2\n"
+        "quit\n"
+    ).encode("utf-8")
+    completed = subprocess.run(
+        [sys.executable, "-m", "namichess", "--engine", "missing-stockfish.exe"],
+        input=commands,
+        capture_output=True,
+        cwd=Path(__file__).parents[2],
+        env=environment,
+        timeout=10,
+        check=False,
+    )
+    assert completed.returncode == 0
+    output = completed.stdout.decode("utf-8")
+    assert "Changed: Ka2 — white king a1→a2" in output

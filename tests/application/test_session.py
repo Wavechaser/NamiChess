@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from namichess.application.imports import ImportError
+from namichess.application.analysis import AnalysisResult, AnalysisState
 from namichess.application.session import Session, SessionError
 from namichess.application.views import PositionStatus
 
@@ -89,5 +90,19 @@ def test_shared_view_exposes_position_facts_and_previous_move_delta() -> None:
     moved = session.play("Kd2")
     assert moved.previous_move is not None
     assert moved.previous_move.uci == "e1d2"
+    assert moved.previous_move.san == "Kd2"
     assert moved.previous_move.before == root.facts.position_id
     assert moved.previous_move.after == moved.facts.position_id
+
+
+def test_analysis_view_filters_results_from_another_revision() -> None:
+    session = Session()
+    first = session.load_fen("7k/8/8/8/8/8/8/R6K w - - 0 1")
+
+    class ControllerView:
+        latest = AnalysisResult(1, first.revision, AnalysisState.COMPLETED)
+
+    controller = ControllerView()
+    assert session.analysis_view(controller).analysis == controller.latest  # type: ignore[arg-type]
+    session.play("Ra2")
+    assert session.analysis_view(controller).analysis is None  # type: ignore[arg-type]

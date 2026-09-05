@@ -490,6 +490,39 @@ def test_metadata_only_updates_do_not_relabel_or_create_scored_evidence() -> Non
     asyncio.run(exercise())
 
 
+def test_startup_timeout_is_one_aggregate_deadline_and_reaps_configured_child() -> None:
+    async def asserted() -> None:
+        protocol = FakeProtocol(lambda _: FakeAnalysis([]))
+        transport = FakeTransport()
+        transport.on_terminate = lambda: (None if protocol.returncode.done() else protocol.returncode.set_result(1))
+        async def opener(command: object):
+            await asyncio.sleep(0.03)
+            return transport, protocol
+        async def configure(options: object):
+            await asyncio.sleep(0.03)
+        protocol.configure = configure  # type: ignore[method-assign]
+        adapter = StockfishAdapter("slow", opener=opener, startup_timeout_seconds=0.05)  # type: ignore[arg-type]
+        with pytest.raises(asyncio.TimeoutError):
+            await adapter.prepare()
+        assert transport.terminated and adapter._protocol is None and adapter._transport is None
+    asyncio.run(asserted())
+
+
+def test_configuration_failure_reaps_owned_child() -> None:
+    async def exercise() -> None:
+        protocol = FakeProtocol(lambda _: FakeAnalysis([]))
+        transport = FakeTransport()
+        transport.on_terminate = lambda: (None if protocol.returncode.done() else protocol.returncode.set_result(1))
+        async def configure(options: object):
+            raise chess.engine.EngineError("bad option")
+        protocol.configure = configure  # type: ignore[method-assign]
+        adapter = await adapter_with(protocol, transport)
+        with pytest.raises(chess.engine.EngineError, match="bad option"):
+            await adapter.prepare()
+        assert transport.terminated and adapter._protocol is None and adapter._transport is None
+    asyncio.run(exercise())
+
+
 def test_canceling_prepare_terminates_a_child_stalled_in_configuration() -> None:
     async def exercise() -> None:
         protocol = FakeProtocol(lambda _: FakeAnalysis([]))

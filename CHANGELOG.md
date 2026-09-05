@@ -4,6 +4,17 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Interactive analysis workflow — 2026-09-06
+
+- Connected navigation to revision-safe bounded analysis, legal two-move
+  comparison, awaited cancellation, explicit engine paths, and clean shutdown.
+- Added concise candidate tables, catalog-backed facts, detailed SAN evidence,
+  move-change summaries, and complete `schema_version: 1` JSON snapshots from
+  the same shared application view.
+- Closed the combined lifecycle audit with request-scoped cancellation,
+  absorbing shared close, one aggregate startup deadline, bounded child-process
+  reaping, UTF-8 native streams, and joined real CLI/Stockfish verification.
+
 ### Candidate comparison and tactical evidence — 2026-09-06
 
 - Added deterministic bounded candidate surveys and focused probes with typed

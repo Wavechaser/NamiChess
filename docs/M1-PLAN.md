@@ -1,6 +1,6 @@
 # M1 — Interactive CLI Position Analysis
 
-**Status:** M1-01 through M1-03 complete; M1-04 and M1-05 integration in progress
+**Status:** Complete
 **Last updated:** 2026-09-06
 
 This document owns M1's implementation sequence, acceptance gates, recorded
@@ -153,9 +153,9 @@ immediately. Ctrl+C cancels active analysis and otherwise clears input.
 | M1-01 | Consistent documentation and contracts | — | Contract cross-check; baseline suite | complete |
 | M1-02 | Navigable CLI session for validated PGN/FEN | M1-01 | Parser fixtures; session transcripts | complete |
 | M1-03 | Correct shared board facts and move changes | M1-02 | Structured mirrored fixtures | complete |
-| M1-04 | Bounded, cancelable persistent engine analysis | M1-02 | Fake lifecycle tests; real Stockfish | adapter verified; session integration pending |
-| M1-05 | Evidence-backed comparisons and tactical explanations | M1-03, M1-04 | Counterexample fixtures | pending |
-| M1-06 | Complete text/JSON analysis workflow | M1-05 | Consumer tests; Windows check | pending |
+| M1-04 | Bounded, cancelable persistent engine analysis | M1-02 | Fake lifecycle tests; real Stockfish | complete |
+| M1-05 | Evidence-backed comparisons and tactical explanations | M1-03, M1-04 | Counterexample fixtures | complete |
+| M1-06 | Complete text/JSON analysis workflow | M1-05 | Consumer tests; Windows check | complete |
 
 ### M1-01 — Documentation and contract baseline
 
@@ -334,52 +334,30 @@ verify bounded retained work and process cleanup, record elapsed/cancellation
 observations, and review the complete diff for false chess claims, GUI assumptions,
 scope expansion, and unresolved regression risks.
 
-## Resumption state
+## Final state
 
-- Current checkpoint: M1-04; M1-05 evidence review proceeds independently.
-- Completed checkpoints: M1-01 (`7f15bd6`) and M1-02 passed baseline verification
-  and independent adversarial review; the root agent records checkpoint commits.
-- Remaining implementation checkpoints: M1-04 through M1-06.
-- M1-04 adapter evidence: independent review and re-review closed startup,
-  cancellation, stalled-stream, overlap, and shutdown findings. Focused guarded
-  suite: 39 passed, including fifteen/twenty queens and nine pawns in both colors,
-  followed by legal-PV checks and process cleanup. Its adapter commit is a coherent
-  implementation increment; the full checkpoint gate remains open until shared
-  request sequencing and CLI cancellation are integrated and verified.
-- M1-03 evidence: shared session views expose `PositionFacts` and an optional
-  prior-ply `MoveDelta`; `inspect <square>` filters those facts without board
-  reconstruction. A pinned-knight consumer fixture distinguishes its geometric
-  attack from absent legal access and exposes the relevant absolute pin. Focused
-  static, session, and CLI tests pass. Independent static review found no remaining
-  defects; consumer review fixed current-square/type labels for moved and promoted
-  pieces, with regressions. Full working-tree suite: 86 passed, 1 guarded-engine skip.
-- M1-02 evidence: strict import, session, native file boundary, and CLI tests pass.
-  Independent review's oversized-counter and normalization findings have focused
-  regressions. The root verified PowerShell interactive help, invalid-FEN rejection,
-  valid-FEN load, legal move, back, and quit. The full suite passed with normal
-  temporary-directory access (61 passed, 1 guarded-engine skip before the final
-  actionable-counter transcript regression; that focused suite passed 13 tests).
-- Ordinary verification: `.\.venv\Scripts\python.exe -m pytest -q`.
-- Required real-engine checkpoint command:
+The user added a final combined invariant review after the implementation and
+original checkpoint verification completed. This audit is an explicit additional
+milestone acceptance gate; it does not silently redefine the completed checkpoint
+criteria. Evidence and findings are recorded in `M1-INTEGRATION-REVIEW.md`.
 
-  ```powershell
-  $env:NAMICHESS_TEST_ENGINE = (Resolve-Path '.\.tools\stockfish\stockfish-windows-x86-64-avx2.exe').Path
-  .\.venv\Scripts\python.exe -m pytest -q
-  ```
-- Environment note: pytest cache remains disabled where workspace permissions
-  prevent cache writes. `prompt_toolkit` 3.x is now an application dependency.
-- Stockfish evidence: the composed-position, PGN-start, terminal, and cancellation
-  probes above were completed during planning; M1-04 must preserve them as
-  reproducible integration tests.
-- Next action: commit the reviewed engine adapter, resolve M1-05 evidence findings,
-  and connect the shared request lifecycle to the CLI before closing M1-04 through M1-06.
-- Artifact locations: repository documentation and tests; planning probes are
-  recorded here until M1-04 turns them into reproducible integration tests.
-- Blockers: none. Pytest cache permissions are an environment limitation.
-- Deferred work: GUI, training, practical-best ranking, broad threats, SEE,
-  persistence/export, and the other exclusions above.
-- Preserve unrelated changes, third-party notices/assets, imported chess files,
-  and the existing machine-local environment.
-- Stop for review if engine probes contradict the support boundary, a displayed
-  claim needs broader search, an input requires new chess rules, or a checkpoint
-  needs material expansion. Record the finding; do not silently widen M1.
+- Checkpoint commits: M1-01 `7f15bd6`, M1-02 `10922dc`, M1-03 `782aac7`,
+  M1-04 adapter `bfa613c`, and M1-05 `577902e`. Strict import follow-up:
+  `6b4fdb7`. M1-06 and combined-audit identifiers remain pending.
+- Final real-engine suite: 155 passed in 24.94 seconds with Stockfish 18 enabled,
+  including the joined real CLI workflow and all invariant regressions.
+- Native Windows verification covered redirected UTF-8 input/output, five-root
+  survey and five focused probes, exact and provisional ranks, rapid PGN
+  navigation, trial/back, comparison, inspection, cancel/replacement sequencing,
+  typed-buffer preservation, invalid FEN, fifteen queens, and the over-32 guard.
+- Final wheel SHA-256:
+  `caf44c3ca108ca3f8ce357bb30a341009b97ca5f475608a9ad59c0c803f2959c`.
+  Temporary isolated extraction/import/CLI-quit verification passed. The wheel
+  contains the catalog, twelve SVG pieces, project/art licenses and notices, and
+  no engine binaries or tests.
+- Independent adversarial reviews closed lifecycle, evidence, stale-result,
+  rendering, and consumer-reconstruction findings. No confirmed substantive M1
+  defects remain.
+- No Stockfish process remained after final verification.
+- Deferred work remains GUI, training, practical-best ranking, broad threats,
+  SEE, persistence/export, and the other exclusions above.

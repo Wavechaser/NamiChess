@@ -232,11 +232,39 @@ Engine states are idle, running, completed, canceled, failed, or unsupported.
 Failure leaves static inspection usable, and a later explicit request retries
 startup without an automatic restart loop.
 
+Cancellation is scoped to the request task that owns it. A concurrent replacement
+cannot be stamped canceled by an older cancel operation, and cancel completion
+means the owned engine operation has settled before replacement proceeds. Close
+is absorbing and idempotent: once it begins, no new request is accepted, all
+callers share its completion. Shutdown asks the owned child to quit or terminates
+it, then waits a bounded time for its return code; final acceptance confirmed no
+Stockfish child remained.
+
+The five-second startup timeout is one outer deadline covering process opening
+and configuration together. Transport ownership transfers to the adapter as soon
+as opening returns, so later configuration failure or timeout terminates and
+performs a bounded return-code wait for that exact child.
+
+Each published engine-evidence snapshot keeps raw score, PV, bound flags, depth,
+nodes, and elapsed time as one atomic tuple; a metadata-only update never
+relabels older scored evidence. Survey and focused-probe evidence is immutable
+and request/revision scoped, and distinct legal branches preserve parallel UCI
+and SAN lines.
+
+The session assembles the shared snapshot and rejects analysis from a different
+position revision before any interface receives it. It also owns analysis
+submission and legal comparison-move resolution, so a later GUI does not repeat
+request sequencing or stale-result policy. CLI cancellation settles before a
+later position request can be submitted.
+
 The CLI renders the shared application view as ASCII text or one
 `schema_version: 1` JSON snapshot. Squares use algebraic coordinates, moves carry
 UCI and SAN, and scores use tagged centipawn or mate values with explicit
 perspective. Progress belongs on stderr and command results on stdout. A later
 GUI consumes the same semantic references to draw arrows and highlights.
+The editable JSON explanation text remains under `content`; its validation and
+formatting adapter lives under `interfaces` and is constructed with the engine
+and controller in `composition.py`.
 
 Ordinary CPython is GIL-bound for CPU-heavy Python bytecode. Stockfish is a native
 external process, so its own search threads are outside the Python GIL. The engine

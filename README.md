@@ -5,9 +5,9 @@ purpose is to explain what a position permits, what a move changes, which threat
 matter, and which sufficiently strong continuation a human can understand and
 keep playing.
 
-The project is implementing its first milestone. Strict PGN/FEN import,
-interactive CLI navigation, and shared static board facts are available;
-engine-backed analysis remains in progress. The product definition is in
+The first milestone is complete. The interactive CLI joins
+strict PGN/FEN navigation, shared static facts, and bounded Stockfish candidate
+evidence. The product definition is in
 [docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and the decision-complete
 milestone gates are in [docs/M1-PLAN.md](docs/M1-PLAN.md).
 
@@ -21,7 +21,8 @@ milestone gates are in [docs/M1-PLAN.md](docs/M1-PLAN.md).
 - M1 can strictly load and navigate PGN/FEN positions, including composed
   standard-chess positions with unusual material. Shared views expose geometric
   attacks, actual-side legal moves, absolute pins, and the previous move delta;
-  `inspect <square>` renders those facts. Stockfish analysis remains in progress.
+  `inspect <square>` renders those facts. Bounded Stockfish analysis, comparison,
+  evidence details, and versioned JSON snapshots are available for review.
 
 ## Requirements
 
@@ -69,25 +70,29 @@ namichess
 Use `load <path>` for a UTF-8 `.pgn` or `.fen` file, or enter a complete
 six-field position with `fen <FEN>`. `games`, `game <n>`, `start`, `end`,
 `next`, `back`, `goto <ply>`, `variations`, `variation <n>`, and
-`move <SAN-or-UCI>` navigate without changing the imported file. Run `help`
+`move <SAN-or-UCI>` navigate without changing the imported file. `inspect`,
+`analyze`, `compare`, `details`, and `json` expose the shared analysis workflow.
+Run `help`
 inside the session for the compact command list.
 
-The application will later accept an explicit engine path, with this location
-as the development default. It will not download engines or contact remote
-services at runtime.
+Pass a different local executable with `namichess --engine <path>`. The location
+above is the development default. NamiChess does not download engines or contact
+remote services at runtime.
 
 ## Persistence
 
-SQLite is deliberately deferred. NamiChess imports, parses, saves, and exports
-PGN games and FEN positions; small app-owned settings, metadata, and derived
-analysis use separate versioned UTF-8 JSON. Imported files are read-only inputs,
-and exports use distinct user-confirmed paths.
+SQLite is deliberately deferred. M1 imports and parses PGN games and FEN
+positions; save and export remain planned beyond M1. Future app-owned settings,
+metadata, and derived analysis will use separate versioned UTF-8 JSON. Imported
+files are read-only inputs, and future exports will use distinct user-confirmed
+paths.
 
 ## Documentation
 
 - [Product specification](docs/chess-copilot-spec.md)
 - [Features](docs/FEATURES.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Command-line guide](docs/COMMANDLINE.md)
 - [M1 implementation plan](docs/M1-PLAN.md)
 - [Defense](docs/DEFENSE.md)
 - [Bugs](docs/BUGS.md)

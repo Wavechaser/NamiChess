@@ -419,6 +419,125 @@ def test_real_rapid_supersession_has_no_asyncio_protocol_errors_and_recovers() -
     asyncio.run(exercise())
 
 
+def test_cancel_targets_captured_request_without_canceling_or_waiting_for_replacement() -> None:
+    class TwoRequestEngine(FakeEngine):
+        def __init__(self):
+            super().__init__()
+            self.first_release = asyncio.Event()
+            self.first_settled = asyncio.Event()
+            self.second_release = asyncio.Event()
+            self.analyses = 0
+
+        async def analyze(self, position, policy, *, progress=None):
+            self.analyses += 1
+            if self.analyses == 1:
+                await self.first_release.wait()
+                await self.first_settled.wait()
+                return EngineReport(EngineStatus.CANCELED)
+            if self.analyses == 2:
+                await self.second_release.wait()
+            return await super().analyze(position, policy, progress=progress)
+
+        async def cancel(self):
+            self.cancel_count += 1
+            self.first_release.set()
+
+    async def exercise():
+        engine = TwoRequestEngine()
+        controller = AnalysisController(engine)
+        position = context(FIXTURES["capped_choice"])
+        first_id = controller.submit(position, 1)
+        await asyncio.sleep(0)
+        canceling = asyncio.create_task(controller.cancel())
+        await engine.first_release.wait()
+        second_id = controller.submit(position, 2)
+        engine.first_settled.set()
+        await asyncio.wait_for(canceling, 0.2)
+        assert first_id != second_id
+        assert controller.latest is not None and controller.latest.request_id == second_id
+        assert controller.latest.state is AnalysisState.RUNNING
+        engine.second_release.set()
+        result = await controller.wait()
+        assert result is not None and result.request_id == second_id
+
+    asyncio.run(exercise())
+
+
+def test_close_is_absorbing_idempotent_and_shared_while_cleanup_runs() -> None:
+    class ClosingEngine(FakeEngine):
+        def __init__(self):
+            super().__init__()
+            self.close_entered = asyncio.Event()
+            self.close_release = asyncio.Event()
+            self.close_count = 0
+
+        async def close(self):
+            self.close_count += 1
+            self.close_entered.set()
+            await self.close_release.wait()
+
+    async def exercise():
+        engine = ClosingEngine()
+        controller = AnalysisController(engine)
+        first = asyncio.create_task(controller.close())
+        await engine.close_entered.wait()
+        second = asyncio.create_task(controller.close())
+        with pytest.raises(RuntimeError, match="closed"):
+            controller.submit(context(FIXTURES["capped_choice"]), 1)
+        assert not first.done() and not second.done()
+        engine.close_release.set()
+        await asyncio.gather(first, second)
+        await controller.close()
+        assert engine.close_count == 1
+
+    asyncio.run(exercise())
+
+
+def test_close_immediately_after_submit_cancels_unstarted_request_without_engine_work() -> None:
+    async def exercise():
+        engine = FakeEngine()
+        controller = AnalysisController(engine)
+        request_id = controller.submit(context(FIXTURES["capped_choice"]), 1)
+        await controller.close()
+        assert engine.prepares == 0 and engine.calls == []
+        assert controller.latest is not None
+        assert controller.latest.request_id == request_id
+        assert controller.latest.state is AnalysisState.CANCELED
+        unchanged = controller.latest
+        await controller.close()
+        assert controller.latest == unchanged
+
+    asyncio.run(exercise())
+
+
+def test_close_settles_active_request_to_a_nonrunning_state() -> None:
+    class ActiveEngine(FakeEngine):
+        def __init__(self):
+            super().__init__()
+            self.entered = asyncio.Event()
+            self.release = asyncio.Event()
+
+        async def analyze(self, position, policy, *, progress=None):
+            self.entered.set()
+            await self.release.wait()
+            return EngineReport(EngineStatus.CANCELED)
+
+        async def cancel(self):
+            self.cancel_count += 1
+            self.release.set()
+
+    async def exercise():
+        engine = ActiveEngine()
+        controller = AnalysisController(engine)
+        controller.submit(context(FIXTURES["capped_choice"]), 1)
+        await engine.entered.wait()
+        await controller.close()
+        assert controller.latest is not None
+        assert controller.latest.state is not AnalysisState.RUNNING
+
+    asyncio.run(exercise())
+
+
 def test_survey_probe_sign_disagreement_preserves_both_typed_scores() -> None:
     class SignFlip(FakeEngine):
         async def analyze(self, position, policy, *, progress=None):

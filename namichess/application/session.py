@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import dataclasses
 import itertools
 
 import chess
 import chess.pgn
 
 from namichess.analysis.static import move_delta, position_facts
+from namichess.application.analysis import AnalysisController
 from namichess.application.imports import (
     ImportedDocument,
     import_fen_text,
@@ -128,6 +130,52 @@ class Session:
             if child.move == move:
                 return self._select(self._game_index, child)
         return self._select(self._game_index, node.add_variation(move))
+
+    def resolve_moves(self, notations: tuple[str, ...]) -> tuple[str, ...]:
+        """Resolve legal SAN/UCI moves at the selected node without moving it."""
+        board = self._require_node().board()
+        resolved: list[str] = []
+        for notation in notations:
+            try:
+                move = chess.Move.from_uci(notation)
+                if move not in board.legal_moves:
+                    raise ValueError
+            except ValueError:
+                try:
+                    move = board.parse_san(notation)
+                except ValueError as exc:
+                    raise SessionError(f"{notation!r} is not a legal unambiguous SAN or UCI move") from exc
+            uci = move.uci()
+            if uci in resolved:
+                raise SessionError("compare requires two distinct legal moves")
+            resolved.append(uci)
+        return tuple(resolved)
+
+    def request_analysis(
+        self,
+        controller: AnalysisController,
+        *,
+        view: SessionView | None = None,
+        compare: tuple[str, ...] = (),
+    ) -> SessionView:
+        """Submit analysis and return the revision-safe shared application view."""
+        current = view or self.view()
+        moves = self.resolve_moves(compare) if compare else ()
+        controller.submit(current.position, current.revision, moves)
+        return self.analysis_view(controller, view=current)
+
+    def analysis_view(
+        self,
+        controller: AnalysisController,
+        *,
+        view: SessionView | None = None,
+    ) -> SessionView:
+        """Attach only analysis belonging to the selected session revision."""
+        current = view or self.view()
+        result = controller.latest
+        if result is not None and result.revision != current.revision:
+            result = None
+        return dataclasses.replace(current, analysis=result)
 
     def view(self) -> SessionView:
         document = self._require_document()

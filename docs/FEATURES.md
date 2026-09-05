@@ -1,7 +1,8 @@
 # NamiChess Features
 
-Status: M1 implementation. Strict PGN/FEN import, interactive navigation, and
-shared static facts are implemented; engine-backed analysis remains in progress.
+Status: M1 complete. Strict import, navigation, static inspection,
+bounded engine analysis, candidate comparison, text details, and shared JSON
+snapshots are implemented.
 
 ## First milestone
 
@@ -22,6 +23,9 @@ geometrically, moves by the actual side to move that legally reach it, and
 relevant absolute pins. Geometric attack does not imply legal access or safety.
 After a move, the shared view also exposes identity-bearing placement, capture,
 promotion, castling-rook, attack, slider-ray, pin, and check changes.
+
+The following sections describe the wider product roadmap; only behavior named
+above and in the M1 plan is implemented in the current milestone.
 
 ## Product aim
 

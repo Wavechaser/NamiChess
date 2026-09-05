@@ -30,6 +30,10 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - `tests/`: pytest tests mirroring package boundaries. Reusable FEN/PGN inputs
   and expected facts live under `tests/fixtures/`.
 - `docs/`: active product, architecture, defense, and defect documentation.
+- `docs/obsolete/`: retired plans and historical references. Move documents here
+  only after their completion/replacement is verified; retain their filenames,
+  mark their historical status, and update incoming links during final cleanup.
+  Active behavior and interface contracts remain outside this directory.
 - `.tools/`: ignored machine-local tools such as Stockfish; never package or
   commit these binaries.
 - User and development data never lives in the source tree.
@@ -119,6 +123,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - `docs/chess-copilot-spec.md` owns the core product specification.
 - `docs/FEATURES.md` owns current and planned product behavior.
 - `docs/ARCHITECTURE.md` owns durable boundaries, data flow, and invariants.
+- `docs/COMMANDLINE.md` owns the CLI command reference and shared interface/API
+  contract.
 - `docs/M1-PLAN.md` owns the approved M1 checkpoint sequence, acceptance gates,
   verification evidence, and resumption state.
 - `docs/DEFENSE.md` owns the deliberately narrow trust and non-goal model.

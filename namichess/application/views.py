@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from namichess.analysis.static import MoveDelta, PositionFacts
+from namichess.application.analysis import AnalysisResult
 from namichess.domain.models import PiecePlacement, PositionContext
 
 
@@ -43,3 +44,4 @@ class SessionView:
     can_claim_fifty_moves: bool
     can_claim_threefold_repetition: bool
     variations: tuple[str, ...]
+    analysis: AnalysisResult | None = None
