@@ -194,3 +194,8 @@ late or superseded results cannot populate a newer shared view. Interfaces read
 immutable `SessionView`, `PositionFacts`, `MoveDelta`, `AnalysisResult`,
 `Explanation`, and `Evidence` values. `composition.py` alone constructs the
 Stockfish adapter, controller, session, and explanation catalog.
+
+`cancel()` targets the request captured when cancellation begins; it neither
+cancels nor waits for a replacement submitted concurrently. `close()` is
+idempotent and shared across callers. As soon as close begins, a new `submit()`
+is rejected with `RuntimeError`, and every close caller awaits the same cleanup.

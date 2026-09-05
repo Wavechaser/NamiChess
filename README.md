@@ -8,8 +8,8 @@ keep playing.
 The first milestone is complete. The interactive CLI joins
 strict PGN/FEN navigation, shared static facts, and bounded Stockfish candidate
 evidence. The product definition is in
-[docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and the decision-complete
-milestone gates are in [docs/M1-PLAN.md](docs/M1-PLAN.md).
+[docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and current CLI/API
+behavior is in [docs/COMMANDLINE.md](docs/COMMANDLINE.md).
 
 ## Current state
 
@@ -93,7 +93,8 @@ paths.
 - [Features](docs/FEATURES.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Command-line guide](docs/COMMANDLINE.md)
-- [M1 implementation plan](docs/M1-PLAN.md)
+- [Historical M1 implementation plan](docs/obsolete/M1-PLAN.md)
+- [Historical M1 invariant review](docs/obsolete/M1-INTEGRATION-REVIEW.md)
 - [Defense](docs/DEFENSE.md)
 - [Bugs](docs/BUGS.md)
 - [Changelog](CHANGELOG.md)

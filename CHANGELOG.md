@@ -4,6 +4,12 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M1 documentation archive — 2026-09-06
+
+- Retired the accepted M1 implementation plan and combined invariant review to
+  `docs/obsolete/`; active CLI/API and durable architecture contracts remain in
+  their owning references.
+
 ### Interactive analysis workflow — 2026-09-06
 
 - Connected navigation to revision-safe bounded analysis, legal two-move

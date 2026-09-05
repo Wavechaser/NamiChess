@@ -1,6 +1,9 @@
 # M1 — Interactive CLI Position Analysis
 
-**Status:** Complete
+**Historical status:** Retired after accepted completion on 2026-09-06
+**Implementation commit:** `ae23b4f`
+**Active owners:** CLI/API behavior is in `../COMMANDLINE.md`; durable boundaries
+are in `../ARCHITECTURE.md`; current/planned behavior is in `../FEATURES.md`.
 **Last updated:** 2026-09-06
 
 This document owns M1's implementation sequence, acceptance gates, recorded
@@ -343,7 +346,7 @@ criteria. Evidence and findings are recorded in `M1-INTEGRATION-REVIEW.md`.
 
 - Checkpoint commits: M1-01 `7f15bd6`, M1-02 `10922dc`, M1-03 `782aac7`,
   M1-04 adapter `bfa613c`, and M1-05 `577902e`. Strict import follow-up:
-  `6b4fdb7`. M1-06 and combined-audit identifiers remain pending.
+  `6b4fdb7`; M1-06 and the combined audit: `ae23b4f`.
 - Final real-engine suite: 155 passed in 24.94 seconds with Stockfish 18 enabled,
   including the joined real CLI workflow and all invariant regressions.
 - Native Windows verification covered redirected UTF-8 input/output, five-root

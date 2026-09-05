@@ -125,8 +125,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - `docs/ARCHITECTURE.md` owns durable boundaries, data flow, and invariants.
 - `docs/COMMANDLINE.md` owns the CLI command reference and shared interface/API
   contract.
-- `docs/M1-PLAN.md` owns the approved M1 checkpoint sequence, acceptance gates,
-  verification evidence, and resumption state.
+- Completed milestone plans and audits are historical records under
+  `docs/obsolete/`; active contracts remain in their owning documents above.
 - `docs/DEFENSE.md` owns the deliberately narrow trust and non-goal model.
 - `docs/BUGS.md` records confirmed substantive defects, not ideas or tasks.
 - `CHANGELOG.md` records completed task-level changes newest-first.

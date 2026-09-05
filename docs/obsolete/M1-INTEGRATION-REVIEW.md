@@ -1,6 +1,10 @@
 # M1 Combined Invariant Review
 
-**Status:** Accepted  
+**Historical status:** Accepted and retired on 2026-09-06
+**Implementation commit:** `ae23b4f`
+**Active owners:** CLI/API behavior is in `../COMMANDLINE.md`; durable invariants
+are in `../ARCHITECTURE.md`; current/planned behavior is in `../FEATURES.md`.
+
 **Scope:** M1-01 through M1-06 after implementation and checkpoint verification
 
 The user added this combined review as a final milestone acceptance gate after

@@ -398,7 +398,7 @@ user to correct and reload. Input repair is outside M1.
 - Compute geometric attacks, legal access, absolute pins, checks, and move deltas.
 - Add bounded, cancelable Stockfish survey and focused verification immediately;
   rank analyzed candidates and explain only concrete, evidence-backed tactical
-  consequences. See `M1-PLAN.md` for the checkpoint contracts.
+  consequences. See `COMMANDLINE.md` for the implemented CLI/API contract.
 
 ### Phase 2 — Rich position understanding
 

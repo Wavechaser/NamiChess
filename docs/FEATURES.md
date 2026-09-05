@@ -11,7 +11,7 @@ and variations, accepts composed standard-chess positions with unusual material,
 shows shared board facts and move deltas, and compares analyzed candidates with
 bounded Stockfish evidence. Text and versioned JSON render the same application
 views so a later GUI can add arrows and highlights without duplicating chess
-policy. Detailed gates and defaults live in [M1-PLAN.md](M1-PLAN.md).
+policy. Current CLI behavior and defaults live in [COMMANDLINE.md](COMMANDLINE.md).
 
 M1 includes narrow threat reporting for checks, immediate mates, captures, legal
 replies, and consequences in analyzed lines. Comprehensive threat assessment,
