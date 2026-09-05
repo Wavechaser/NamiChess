@@ -187,8 +187,12 @@ cannot create unbounded integers or overflow the later engine boundary. `fen`
 and `load` reject incomplete, invalid, or
 unparseable input with actionable errors; no M1 command repairs input.
 
-Preserve standard PGN headers, comments, NAGs, and nested variations. Headers
-are optional, but every present tag must be valid. Every game, including a
+Preserve standard PGN headers, comments, NAGs, and nested variations. Original
+move tokens must match canonical
+standard SAN, including accurate check/mate suffixes. Coordinate or overspecified
+notation is rejected in PGN; interactive `move` still accepts legal SAN or UCI.
+
+Headers are optional, but every present tag must be valid. Every game, including a
 zero-move game, has exactly one terminating mainline result marker (`1-0`, `0-1`,
 `1/2-1/2`, or `*`), with no following SAN in that game. A result marker inside a
 variation is rejected, and a `Result` header must match the

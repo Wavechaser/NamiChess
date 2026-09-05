@@ -35,6 +35,7 @@ class _StrictBuilder(chess.pgn.GameBuilder):
     def __init__(self, budget: _ParseBudget) -> None:
         super().__init__()
         self._budget = budget
+        self.sans: list[str] = []
 
     def handle_error(self, error: Exception) -> None:
         raise error
@@ -61,6 +62,7 @@ class _StrictBuilder(chess.pgn.GameBuilder):
             raise ImportError(
                 f"PGN exceeds move-node limit {MAX_MOVE_NODES}; reduce the games or variations and reload"
             )
+        self.sans.append(board.san(move))
         return super().visit_move(board, move)
 
 
@@ -129,11 +131,12 @@ def _mask_comments_and_headers(segment: str, game_number: int) -> str:
     return "".join(chars)
 
 
-def _validate_tokens(segment: str, game_number: int) -> str:
+def _validate_tokens(segment: str, game_number: int, expected_sans: tuple[str, ...]) -> str:
     text = _mask_comments_and_headers(segment, game_number)
     offset = 0
     depth = 0
     result: str | None = None
+    san_index = 0
     while offset < len(text):
         if text[offset].isspace():
             offset += 1
@@ -173,6 +176,24 @@ def _validate_tokens(segment: str, game_number: int) -> str:
             if depth:
                 raise _problem(game_number, segment, offset, "result marker appears inside a variation")
             result = token
+        elif token.startswith(("$", "?", "!")):
+            pass
+        else:
+            token_end = token_match.end()
+            if token_end < len(text) and text[token_end] in "+#":
+                token_end += 1
+            actual_san = text[offset:token_end]
+            if san_index >= len(expected_sans):
+                raise _problem(game_number, segment, offset, f"unrecognized SAN {actual_san!r}")
+            expected_san = expected_sans[san_index]
+            if actual_san != expected_san:
+                raise _problem(
+                    game_number,
+                    segment,
+                    offset,
+                    f"noncanonical SAN {actual_san!r}; use {expected_san!r}",
+                )
+            san_index += 1
         offset = token_match.end()
         if offset < len(text) and text[offset] in "+#":
             offset += 1
@@ -180,6 +201,8 @@ def _validate_tokens(segment: str, game_number: int) -> str:
         raise _problem(game_number, segment, len(segment) - 1, "unclosed variation parenthesis")
     if result is None:
         raise _problem(game_number, segment, max(0, len(segment) - 1), "missing terminating result marker")
+    if san_index != len(expected_sans):
+        raise _problem(game_number, segment, len(segment), "incomplete movetext")
     return result
 
 
@@ -189,8 +212,9 @@ def import_pgn_text(text: str) -> ImportedDocument:
     budget = _ParseBudget()
     while True:
         start = handle.tell()
+        builder = _StrictBuilder(budget)
         try:
-            game = chess.pgn.read_game(handle, Visitor=lambda: _StrictBuilder(budget))
+            game = chess.pgn.read_game(handle, Visitor=lambda: builder)
         except (ValueError, ImportError) as exc:
             if isinstance(exc, ImportError):
                 raise
@@ -209,7 +233,7 @@ def import_pgn_text(text: str) -> ImportedDocument:
                 f"PGN exceeds game limit {MAX_GAMES}; reduce the file and reload"
             )
         segment = handle.getvalue()[start:end]
-        result = _validate_tokens(segment, game_number)
+        result = _validate_tokens(segment, game_number, tuple(builder.sans))
         if game.errors:
             raise ImportError(
                 f"game {game_number}: {game.errors[0]}; correct the PGN and reload"
@@ -255,4 +279,3 @@ def import_fen_text(text: str) -> ImportedDocument:
         game.headers["FEN"] = board.fen(en_passant="fen")
     game.headers["Result"] = "*"
     return ImportedDocument((game,), has_history=False)
-

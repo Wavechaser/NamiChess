@@ -4,6 +4,12 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Strict PGN move notation — 2026-09-06
+
+- Reject false or missing check/mate suffixes and nonstandard coordinate or
+  overspecified SAN in imported games and variations, with actionable errors.
+- Preserve the current session after rejection; retain SAN/UCI support for trial moves.
+
 ### Persistent Stockfish adapter — 2026-09-06
 
 - Added an asynchronous, reusable engine adapter with legal history/PV checks,

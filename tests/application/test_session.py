@@ -38,6 +38,17 @@ def test_failed_load_preserves_current_session() -> None:
     assert after.status is PositionStatus.STALEMATE
 
 
+@pytest.mark.parametrize("pgn", ("1. e4# *", "1. e4+ *", "1. e2e4 *"))
+def test_noncanonical_pgn_load_preserves_current_session(pgn: str) -> None:
+    session = Session()
+    before = session.load_fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1")
+
+    with pytest.raises(ImportError, match="noncanonical SAN"):
+        session.load_pgn(pgn)
+
+    assert session.view().position == before.position
+
+
 def test_oversized_fen_counter_is_actionable_and_preserves_session() -> None:
     session = Session()
     before = session.load_fen("7k/5Q2/6K1/8/8/8/8/8 b - - 0 1")
