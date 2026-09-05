@@ -353,6 +353,143 @@ def test_cancel_during_startup_covers_the_entire_request() -> None:
     asyncio.run(exercise())
 
 
+def test_cancel_during_analysis_ready_handshake_does_not_cancel_protocol_future() -> None:
+    async def exercise() -> None:
+        board = chess.Board()
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        def complete(current: chess.Board) -> FakeAnalysis:
+            move = next(iter(current.legal_moves))
+            return FakeAnalysis([{
+                "score": chess.engine.PovScore(chess.engine.Cp(10), chess.WHITE),
+                "pv": [move],
+            }])
+
+        protocol = FakeProtocol(complete)
+        original_analysis = protocol.analysis
+
+        async def delayed_analysis(*args: object, **kwargs: object) -> FakeAnalysis:
+            entered.set()
+            await release.wait()
+            return await original_analysis(*args, **kwargs)  # type: ignore[arg-type]
+
+        protocol.analysis = delayed_analysis  # type: ignore[method-assign]
+        adapter = await adapter_with(protocol, FakeTransport())
+        task = asyncio.create_task(adapter.analyze(context_for(board), EnginePolicy(1.0)))
+        await entered.wait()
+        canceling = asyncio.create_task(adapter.cancel())
+        await asyncio.sleep(0)
+        assert not task.cancelled()
+        release.set()
+        await canceling
+        assert (await task).status is EngineStatus.CANCELED
+        assert adapter._active_task is None
+
+    asyncio.run(exercise())
+
+
+def test_finish_during_analysis_ready_handshake_stops_and_returns_evidence() -> None:
+    async def exercise() -> None:
+        board = chess.Board()
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        move = next(iter(board.legal_moves))
+        info = {"score": chess.engine.PovScore(chess.engine.Cp(12), chess.WHITE), "pv": [move], "time": 0.07}
+        protocol = FakeProtocol(lambda _: ProgressThenStops(info))
+        original_analysis = protocol.analysis
+
+        async def delayed_analysis(*args: object, **kwargs: object) -> FakeAnalysis:
+            entered.set()
+            await release.wait()
+            return await original_analysis(*args, **kwargs)  # type: ignore[arg-type]
+
+        protocol.analysis = delayed_analysis  # type: ignore[method-assign]
+        adapter = await adapter_with(protocol, FakeTransport())
+        analyzing = asyncio.create_task(adapter.analyze(context_for(board), EnginePolicy(1.0)))
+        await entered.wait()
+        finishing = asyncio.create_task(adapter.finish())
+        await asyncio.sleep(0)
+        assert not finishing.done()
+        release.set()
+        report = await finishing
+        assert report is not None and report.status is EngineStatus.COMPLETED
+        assert report.candidates[0].elapsed_seconds == 0.07
+        assert await analyzing == report
+
+    asyncio.run(exercise())
+
+
+def test_finish_stop_timeout_is_failed_even_when_analysis_settles_as_canceled() -> None:
+    async def exercise() -> None:
+        board = chess.Board()
+        protocol = FakeProtocol(lambda _: StalledAnalysis())
+        transport = FakeTransport()
+        transport.on_terminate = lambda: (
+            None if protocol.returncode.done() else protocol.returncode.set_result(1)
+        )
+        adapter = StockfishAdapter("fakefish", opener=lambda _: _opened(transport, protocol), stop_grace_seconds=0.01)  # type: ignore[arg-type]
+        analyzing = asyncio.create_task(adapter.analyze(context_for(board), EnginePolicy(1.0)))
+        while adapter._active is None:
+            await asyncio.sleep(0)
+        report = await adapter.finish()
+        assert report is not None and report.status is EngineStatus.FAILED
+        assert report.message == "engine did not stop within the grace period"
+        assert (await analyzing).status is EngineStatus.CANCELED
+
+    async def _opened(transport: FakeTransport, protocol: FakeProtocol):
+        return transport, protocol
+
+    asyncio.run(exercise())
+
+
+def test_later_exact_score_clears_an_earlier_bound_snapshot() -> None:
+    async def exercise() -> None:
+        board = chess.Board()
+        move = next(iter(board.legal_moves))
+        bound = {
+            "multipv": 1,
+            "score": chess.engine.PovScore(chess.engine.Cp(15), chess.WHITE),
+            "pv": [move],
+            "lowerbound": True,
+        }
+        exact = {
+            "multipv": 1,
+            "score": chess.engine.PovScore(chess.engine.Cp(22), chess.WHITE),
+            "pv": [move],
+        }
+        adapter = await adapter_with(FakeProtocol(lambda _: FakeAnalysis([bound, exact])), FakeTransport())
+        report = await adapter.analyze(context_for(board), EnginePolicy(0.1))
+        assert report.status is EngineStatus.COMPLETED
+        assert report.candidates[0].score.centipawns == 22
+        assert report.candidates[0].score.bound is ScoreBound.EXACT
+
+    asyncio.run(exercise())
+
+
+def test_metadata_only_updates_do_not_relabel_or_create_scored_evidence() -> None:
+    async def exercise() -> None:
+        board = chess.Board()
+        move = next(iter(board.legal_moves))
+        scored = {
+            "multipv": 1,
+            "score": chess.engine.PovScore(chess.engine.Cp(22), chess.WHITE),
+            "pv": [move],
+            "depth": 7,
+            "nodes": 70,
+            "time": 0.07,
+        }
+        metadata = {"multipv": 1, "depth": 20, "nodes": 900, "time": 0.9}
+        adapter = await adapter_with(FakeProtocol(lambda _: FakeAnalysis([metadata, scored, metadata])), FakeTransport())
+        report = await adapter.analyze(context_for(board), EnginePolicy(0.1))
+        assert report.status is EngineStatus.COMPLETED
+        assert len(report.candidates) == 1
+        candidate = report.candidates[0]
+        assert (candidate.depth, candidate.nodes, candidate.elapsed_seconds) == (7, 70, 0.07)
+
+    asyncio.run(exercise())
+
+
 def test_canceling_prepare_terminates_a_child_stalled_in_configuration() -> None:
     async def exercise() -> None:
         protocol = FakeProtocol(lambda _: FakeAnalysis([]))

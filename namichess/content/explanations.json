@@ -1,0 +1,9 @@
+{
+  "engine.reported_mate": "Stockfish reports that {winner} mates in {moves} moves in the analyzed line.",
+  "engine.survey_final_disagreement": "The survey and restricted probe disagree about this move's score sign or mate status.",
+  "position.in_check": "The side to move is in check from the referenced piece.",
+  "position.mate_in_one": "The referenced legal moves give immediate checkmate.",
+  "candidate.allows_opponent_mate_in_one": "After this candidate, the opponent has {reply_count} referenced immediate checkmate reply or replies.",
+  "line.capture": "In the analyzed line, {san} captures the referenced piece and changes White's material balance by {material_delta_white}.",
+  "line.check": "In the analyzed line, {san} gives check."
+}

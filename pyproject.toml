@@ -34,6 +34,7 @@ include = ["namichess*"]
 
 [tool.setuptools.package-data]
 namichess = [
+    "content/*.json",
     "interfaces/web/assets/pieces/mpchess/*.svg",
     "interfaces/web/assets/pieces/mpchess/LICENSE",
 ]

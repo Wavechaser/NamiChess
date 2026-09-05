@@ -4,6 +4,15 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Candidate comparison and tactical evidence — 2026-09-06
+
+- Added deterministic bounded candidate surveys and focused probes with typed
+  White-perspective scores, explicit bounds, legal coverage, and stable IDs
+  independent of rank.
+- Added legally replayed evidence for checks, mate in one, captures, recaptures,
+  promotions, material changes, and survey/probe disagreement without inferring
+  unsearched alternatives.
+
 ### Strict PGN move notation — 2026-09-06
 
 - Reject false or missing check/mate suffixes and nonstandard coordinate or

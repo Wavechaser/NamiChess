@@ -144,6 +144,7 @@ class StockfishAdapter:
         self._active: chess.engine.AnalysisResult | None = None
         self._active_task: asyncio.Task[EngineReport] | None = None
         self._was_canceled = False
+        self._finish_requested = False
         self._closing = False
 
     async def analyze(
@@ -163,6 +164,7 @@ class StockfishAdapter:
             raise RuntimeError("analysis requires an asyncio task")
         self._active_task = task
         self._was_canceled = False
+        self._finish_requested = False
         try:
             board = self._reconstruct_board(context)
             if len(board.piece_map()) > MAX_ENGINE_PIECES:
@@ -183,15 +185,22 @@ class StockfishAdapter:
                 root_moves=root_moves or None,
             )
             self._active = analysis
+            if self._was_canceled:
+                await self._stop_and_drain(analysis)
+                return EngineReport(EngineStatus.CANCELED)
+            if self._finish_requested:
+                analysis.stop()
             started = self._monotonic()
             last_progress = started - 0.25
             progress_error: Exception | None = None
-            async for _ in analysis:
+            snapshots: dict[int, dict[str, object]] = {}
+            async for info in analysis:
+                self._merge_snapshot(snapshots, info)
                 now = self._monotonic()
                 if progress is not None and now - last_progress >= 0.25:
                     try:
                         await self._publish(
-                            progress, analysis.multipv, board, now - started, root_moves
+                            progress, self._ordered_snapshots(snapshots), board, now - started, root_moves
                         )
                     except Exception as error:
                         progress_error = error
@@ -200,7 +209,7 @@ class StockfishAdapter:
                     last_progress = now
             if progress_error is not None:
                 raise progress_error
-            candidates = self._candidates(analysis.multipv, board, root_moves=root_moves)
+            candidates = self._candidates(self._ordered_snapshots(snapshots), board, root_moves=root_moves)
             if self._was_canceled:
                 return EngineReport(EngineStatus.CANCELED)
             return EngineReport(
@@ -251,9 +260,7 @@ class StockfishAdapter:
         self._was_canceled = True
         if task is asyncio.current_task():
             return
-        if self._active is None:
-            task.cancel()
-        else:
+        if self._active is not None:
             self._active.stop()
         try:
             await asyncio.wait_for(
@@ -268,6 +275,29 @@ class StockfishAdapter:
                 pass
         except asyncio.CancelledError:
             pass
+
+    async def finish(self) -> EngineReport | None:
+        """Stop an active timed search and retain its final legal evidence."""
+        task = self._active_task
+        if task is None:
+            return None
+        if task is asyncio.current_task():
+            raise RuntimeError("an active search cannot finish itself")
+        self._finish_requested = True
+        if self._active is not None:
+            self._active.stop()
+        try:
+            return await asyncio.wait_for(
+                asyncio.shield(task), self._stop_grace_seconds
+            )
+        except asyncio.TimeoutError:
+            await self._terminate_owned_process()
+            task.cancel()
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                pass
+            return EngineReport(EngineStatus.FAILED, message="engine did not stop within the grace period")
 
     async def close(self) -> None:
         """Release the owned child process, even after a stalled stop/quit."""
@@ -464,3 +494,22 @@ class StockfishAdapter:
             return None
         converted = float(value)
         return converted if math.isfinite(converted) else None
+
+    @staticmethod
+    def _merge_snapshot(
+        snapshots: dict[int, dict[str, object]], info: dict[str, object]
+    ) -> None:
+        index_value = info.get("multipv", 1)
+        index = index_value if isinstance(index_value, int) and index_value > 0 else 1
+        if "score" in info and "pv" in info:
+            snapshots[index] = dict(info)
+
+    @staticmethod
+    def _ordered_snapshots(
+        snapshots: dict[int, dict[str, object]],
+    ) -> tuple[dict[str, object], ...]:
+        return tuple(
+            snapshots[index]
+            for index in sorted(snapshots)
+            if "score" in snapshots[index] and "pv" in snapshots[index]
+        )

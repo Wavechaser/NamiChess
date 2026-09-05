@@ -1,0 +1,421 @@
+"""Bounded candidate comparison and current-position tactical evidence."""
+
+from __future__ import annotations
+
+import asyncio
+import time
+from dataclasses import dataclass, replace
+from enum import Enum
+from typing import Callable, Protocol
+
+import chess
+
+from namichess.analysis.engine import EngineCandidate, EnginePolicy, EngineProgress, EngineReport, EngineScore, EngineStatus, MAX_ENGINE_PIECES, ScoreBound
+from namichess.analysis.evidence import Evidence, Explanation, line_consequences
+from namichess.analysis.static import move_delta, position_facts
+from namichess.domain.models import PositionContext, PositionId, SquareRef
+from namichess.domain.position import replay_position
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisPolicy:
+    seconds: float = 5.0
+    survey_seconds: float = 1.0
+    candidate_limit: int = 5
+    comparison_limit: int = 2
+    total_candidate_limit: int = 7
+
+
+class AnalysisState(Enum):
+    RUNNING = "running"
+    COMPLETED = "completed"
+    CANCELED = "canceled"
+    FAILED = "failed"
+    UNSUPPORTED = "unsupported"
+
+
+@dataclass(frozen=True, slots=True)
+class CandidateResult:
+    candidate_id: str
+    position_id: PositionId
+    uci: str
+    san: str
+    mover_color: str
+    rank: int | None
+    score: EngineScore | None
+    pv: tuple[str, ...]
+    provisional: bool
+    explanation_refs: tuple[str, ...]
+    evidence_refs: tuple[str, ...]
+    survey_score: EngineScore | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class Coverage:
+    surveyed: int
+    probed: int
+    requested: int
+    interrupted: bool
+    total_legal: int = 0
+
+
+@dataclass(frozen=True, slots=True)
+class AnalysisResult:
+    request_id: int
+    revision: int
+    state: AnalysisState
+    candidates: tuple[CandidateResult, ...] = ()
+    explanations: tuple[Explanation, ...] = ()
+    evidence: tuple[Evidence, ...] = ()
+    coverage: Coverage = Coverage(0, 0, 0, False)
+    message: str | None = None
+    engine_name: str | None = None
+
+
+class AnalysisEngine(Protocol):
+    async def prepare(self) -> str | None: ...
+    async def analyze(self, context: PositionContext, policy: EnginePolicy, *, progress=None) -> EngineReport: ...
+    async def cancel(self) -> None: ...
+    async def finish(self) -> EngineReport | None: ...
+    async def close(self) -> None: ...
+
+
+class AnalysisController:
+    """Runs one request and retains only the latest replacement."""
+
+    def __init__(self, engine: AnalysisEngine, *, policy: AnalysisPolicy = AnalysisPolicy(), monotonic: Callable[[], float] = time.monotonic) -> None:
+        self._engine, self._policy, self._clock = engine, policy, monotonic
+        self._worker: asyncio.Task[None] | None = None
+        self._pending: tuple[int, int, PositionContext, tuple[str, ...]] | None = None
+        self._superseded = asyncio.Event()
+        self._idle = asyncio.Event()
+        self._idle.set()
+        self._request = 0
+        self.latest: AnalysisResult | None = None
+        self.progress: EngineProgress | None = None
+
+    def submit(self, context: PositionContext, revision: int, compare: tuple[str, ...] = ()) -> int:
+        self._request += 1
+        item = (self._request, revision, context, compare)
+        self.latest = AnalysisResult(self._request, revision, AnalysisState.RUNNING)
+        self.progress = None
+        self._pending = item
+        self._idle.clear()
+        self._superseded.set()
+        if self._worker is None:
+            self._worker = asyncio.create_task(self._work())
+        return self._request
+
+    async def wait(self) -> AnalysisResult | None:
+        await self._idle.wait()
+        return self.latest
+
+    async def cancel(self) -> None:
+        if self._worker is None:
+            return
+        self._pending = None
+        self._superseded.set()
+        await self._engine.cancel()
+        if self._worker is not None and self._worker is not asyncio.current_task():
+            await asyncio.shield(self._worker)
+        if self.latest is not None:
+            self.latest = replace(self.latest, state=AnalysisState.CANCELED)
+
+    async def close(self) -> None:
+        self._pending = None
+        self._superseded.set()
+        await self._engine.cancel()
+        if self._worker is not None and self._worker is not asyncio.current_task():
+            await asyncio.shield(self._worker)
+        await self._engine.close()
+
+    async def _work(self) -> None:
+        try:
+            while self._pending is not None:
+                item, self._pending = self._pending, None
+                self._superseded.clear()
+                result = await self._run(*item)
+                if item[0] == self._request:
+                    self.latest = result
+        finally:
+            self._worker = None
+            self._idle.set()
+
+    async def _run(self, request_id: int, revision: int, context: PositionContext, compare: tuple[str, ...]) -> AnalysisResult:
+        board, _ = replay_position(context)
+        base = dict(request_id=request_id, revision=revision)
+        if board.is_game_over():
+            explanations, evidence = _current_tactics(board, context, request_id, revision)
+            return AnalysisResult(**base, state=AnalysisState.COMPLETED, explanations=explanations, evidence=evidence, message="terminal position; no engine search")
+        if len(board.piece_map()) > MAX_ENGINE_PIECES:
+            return AnalysisResult(**base, state=AnalysisState.UNSUPPORTED, message=f"engine analysis supports at most {MAX_ENGINE_PIECES} occupied squares")
+        legal = {move.uci() for move in board.legal_moves}
+        compared = tuple(dict.fromkeys(compare))
+        if len(compared) > self._policy.comparison_limit or any(move not in legal for move in compared):
+            return AnalysisResult(**base, state=AnalysisState.FAILED, message="comparison moves must be distinct legal moves")
+        try:
+            engine_name = await self._prepare(request_id)
+            if engine_name is _SUPERSEDED:
+                return AnalysisResult(**base, state=AnalysisState.CANCELED)
+            deadline = self._clock() + self._policy.seconds
+            survey_time = min(self._policy.survey_seconds, max(0.0, deadline - self._clock()))
+            survey = await self._search(request_id, context, EnginePolicy(survey_time, self._policy.candidate_limit), deadline) if survey_time > 0 else None
+            if survey is None:
+                return AnalysisResult(**base, state=AnalysisState.COMPLETED, coverage=Coverage(0, 0, 0, True, len(legal)), engine_name=engine_name)
+            if survey.status not in (EngineStatus.COMPLETED,):
+                return AnalysisResult(**base, state=_state(survey.status), message=survey.message, engine_name=engine_name)
+            roots = {candidate.pv[0] for candidate in survey.candidates if candidate.pv}
+            roots.update(compared)
+            selected = tuple(sorted(roots))[: self._policy.total_candidate_limit]
+            probes: dict[str, EngineCandidate] = {}
+            interrupted = False
+            for index, move in enumerate(selected):
+                remaining = deadline - self._clock()
+                if remaining <= 0:
+                    interrupted = True
+                    break
+                report = await self._search(request_id, context, EnginePolicy(remaining / (len(selected) - index), 1, (move,)), deadline)
+                if report is None or report.status is EngineStatus.CANCELED:
+                    interrupted = True
+                    break
+                if report.status is EngineStatus.FAILED:
+                    return AnalysisResult(**base, state=AnalysisState.FAILED, message=report.message, engine_name=engine_name)
+                if report.candidates:
+                    probes[move] = report.candidates[0]
+                    if request_id == self._request:
+                        partial = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
+                        static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
+                        self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name)
+            candidates, explanations, evidence = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
+            static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
+            return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name)
+        except asyncio.CancelledError:
+            return AnalysisResult(**base, state=AnalysisState.CANCELED)
+        except Exception as error:
+            return AnalysisResult(**base, state=AnalysisState.FAILED, message=str(error))
+
+    async def _prepare(self, request_id: int):
+        task = asyncio.create_task(self._engine.prepare())
+        replaced = asyncio.create_task(self._superseded.wait())
+        try:
+            done, _ = await asyncio.wait((task, replaced), return_when=asyncio.FIRST_COMPLETED)
+            if task in done:
+                return task.result()
+            await self._engine.cancel()
+            await asyncio.shield(task)
+            return _SUPERSEDED
+        finally:
+            replaced.cancel()
+
+    async def _search(self, request_id: int, context: PositionContext, policy: EnginePolicy, deadline: float) -> EngineReport | None:
+        callback = lambda progress: self._set_progress(request_id, progress)
+        task = asyncio.create_task(self._engine.analyze(context, policy, progress=callback))
+        replaced = asyncio.create_task(self._superseded.wait())
+        try:
+            timeout = min(policy.seconds, max(0.0, deadline - self._clock()))
+            done, _ = await asyncio.wait((task, replaced), timeout=timeout, return_when=asyncio.FIRST_COMPLETED)
+            if task in done:
+                return task.result()
+            if replaced in done:
+                await self._engine.cancel()
+                return None
+            finish = getattr(self._engine, "finish", None)
+            if finish is not None:
+                return await finish()
+            await self._engine.cancel()
+            return None
+        finally:
+            replaced.cancel()
+
+    def _set_progress(self, request_id: int, progress: EngineProgress) -> None:
+        if request_id == self._request:
+            self.progress = progress
+
+
+_SUPERSEDED = object()
+
+
+def _state(status: EngineStatus) -> AnalysisState:
+    return AnalysisState(status.value)
+
+
+def _assemble(request_id: int, revision: int, board: chess.Board, context: PositionContext, roots: tuple[str, ...], probes: dict[str, EngineCandidate], survey: tuple[EngineCandidate, ...]):
+    mating_replies_by_root: dict[str, tuple[str, ...]] = {}
+    for uci in roots:
+        reply_board = board.copy(stack=True)
+        reply_board.push(chess.Move.from_uci(uci))
+        replies = []
+        for reply in reply_board.legal_moves:
+            reply_board.push(reply)
+            if reply_board.is_checkmate():
+                replies.append(reply.uci())
+            reply_board.pop()
+        mating_replies_by_root[uci] = tuple(sorted(replies))
+    exact = [(uci, item) for uci, item in probes.items() if item.score.bound is ScoreBound.EXACT and not mating_replies_by_root[uci]]
+    mover = board.turn
+    exact.sort(key=lambda pair: pair[0])
+    exact.sort(key=lambda pair: _score_key(pair[1].score, mover), reverse=True)
+    ranks = {uci: rank for rank, (uci, _) in enumerate(exact, 1)}
+    survey_by_root = {item.pv[0]: item for item in survey if item.pv}
+    candidates, explanations, evidence = [], [], []
+    for uci in roots:
+        scope = _scope(request_id, revision, context)
+        candidate_id = f"{scope}:candidate:{uci}"
+        item = probes.get(uci)
+        survey_item = survey_by_root.get(uci)
+        refs: list[str] = []
+        exrefs: list[str] = []
+        survey_evidence_id = None
+        if survey_item is not None:
+            survey_evidence_id = f"{candidate_id}:survey"
+            evidence.append(Evidence(
+                survey_evidence_id,
+                "engine_survey",
+                line=survey_item.pv,
+                san_line=_san_lines(board, (survey_item.pv,))[0],
+                engine_depth=survey_item.depth,
+                engine_nodes=survey_item.nodes,
+                engine_elapsed_seconds=survey_item.elapsed_seconds,
+                score=survey_item.score,
+            ))
+            refs.append(survey_evidence_id)
+        if item is not None:
+            evidence_id = f"{candidate_id}:engine-line"
+            consequences = line_consequences(board, item.pv, _pv_deltas(context, request_id, item.pv))
+            evidence.append(Evidence(
+                evidence_id,
+                "engine_line",
+                line=item.pv,
+                san_line=_san_lines(board, (item.pv,))[0],
+                consequences=consequences,
+                engine_depth=item.depth,
+                engine_nodes=item.nodes,
+                engine_elapsed_seconds=item.elapsed_seconds,
+                score=item.score,
+            ))
+            refs.append(evidence_id)
+            for consequence in consequences:
+                if consequence.capture is not None:
+                    eid = f"{candidate_id}:ply-{consequence.ply}:capture"
+                    explanations.append(Explanation(eid, "line.capture", (("san", consequence.san), ("material_delta_white", consequence.material_delta_white)), pieces=(consequence.mover, consequence.capture), moves=(consequence.uci,), evidence_refs=(evidence_id,)))
+                    exrefs.append(eid)
+                if consequence.gives_check:
+                    eid = f"{candidate_id}:ply-{consequence.ply}:check"
+                    explanations.append(Explanation(eid, "line.check", (("san", consequence.san),), pieces=(consequence.mover,), moves=(consequence.uci,), evidence_refs=(evidence_id,)))
+                    exrefs.append(eid)
+            if item.score.mate is not None:
+                eid = f"{candidate_id}:reported-mate"
+                explanations.append(Explanation(eid, "engine.reported_mate", (("moves", abs(item.score.mate)), ("winner", item.score.mate_winner or "unknown")), moves=(uci,), evidence_refs=(evidence_id,)))
+                exrefs.append(eid)
+        root_move = chess.Move.from_uci(uci)
+        mating_replies = mating_replies_by_root[uci]
+        if mating_replies:
+            evidence_id = f"{candidate_id}:opponent-mate-in-one"
+            evidence.append(Evidence(
+                evidence_id,
+                "legal_opponent_mate_in_one",
+                alternative_lines=tuple((uci, reply) for reply in sorted(mating_replies)),
+                alternative_san_lines=_san_lines(board, tuple((uci, reply) for reply in sorted(mating_replies))),
+            ))
+            refs.append(evidence_id)
+            eid = f"{candidate_id}:opponent-mate-in-one-explanation"
+            explanations.append(Explanation(eid, "candidate.allows_opponent_mate_in_one", (("reply_count", len(mating_replies)),), moves=(uci, *sorted(mating_replies)), evidence_refs=(evidence_id,)))
+            exrefs.append(eid)
+        if item and survey_item and _score_signature(item.score) != _score_signature(survey_item.score):
+            eid = f"{candidate_id}:survey-final-disagreement"
+            explanations.append(Explanation(eid, "engine.survey_final_disagreement", moves=(uci,), evidence_refs=(survey_evidence_id, f"{candidate_id}:engine-line")))
+            exrefs.append(eid)
+        candidates.append(CandidateResult(candidate_id, context.position_id, uci, board.san(root_move), "white" if board.turn else "black", ranks.get(uci), item.score if item else None, item.pv if item else (), item is None or item.score.bound is not ScoreBound.EXACT or bool(mating_replies), tuple(exrefs), tuple(refs), survey_item.score if survey_item else None))
+    return tuple(candidates), tuple(explanations), tuple(evidence)
+
+
+def _pv_deltas(context: PositionContext, request_id: int, pv: tuple[str, ...]):
+    replay, _ = replay_position(context)
+    previous = context
+    result = []
+    moves = list(context.moves)
+    for ply, uci in enumerate(pv, 1):
+        replay.push(chess.Move.from_uci(uci))
+        moves.append(uci)
+        current = PositionContext(
+            context.document_id,
+            context.game_number,
+            context.node_path + (-1, request_id, *_encoded_path(moves)),
+            context.starting_fen,
+            tuple(moves),
+            replay.fen(en_passant="fen"),
+            context.has_history,
+        )
+        result.append(move_delta(previous, current))
+        previous = current
+    return tuple(result)
+
+
+def _current_tactics(board: chess.Board, context: PositionContext, request_id: int, revision: int) -> tuple[tuple[Explanation, ...], tuple[Evidence, ...]]:
+    explanations: list[Explanation] = []
+    evidence: list[Evidence] = []
+    pid = context.position_id
+    scope = _scope(request_id, revision, context)
+    if board.is_check():
+        ref = f"{scope}:current-check"
+        checkers = tuple(SquareRef(pid, chess.square_name(square)) for square in sorted(board.checkers()))
+        checker_ids = position_facts(context).checkers
+        evidence.append(Evidence(ref, "legal_current_check"))
+        explanations.append(Explanation(f"{scope}:current-check-explanation", "position.in_check", pieces=checker_ids, squares=checkers, evidence_refs=(ref,)))
+    mates = []
+    for move in board.legal_moves:
+        board.push(move)
+        if board.is_checkmate():
+            mates.append(move.uci())
+        board.pop()
+    if mates:
+        ref = f"{scope}:mate-in-one"
+        lines = tuple((move,) for move in sorted(mates))
+        evidence.append(Evidence(ref, "legal_mate_in_one", alternative_lines=lines, alternative_san_lines=_san_lines(board, lines)))
+        explanations.append(Explanation(f"{scope}:mate-in-one-explanation", "position.mate_in_one", moves=tuple(sorted(mates)), evidence_refs=(ref,)))
+    return tuple(explanations), tuple(evidence)
+
+
+def _scope(request_id: int, revision: int, context: PositionContext) -> str:
+    return f"request:{request_id}:revision:{revision}:position:{context.document_id}:{context.game_number}:{'.'.join(map(str, context.node_path)) or 'root'}"
+
+
+def _encoded_path(moves: list[str]) -> tuple[int, ...]:
+    return tuple(value for uci in moves for value in (len(uci), *(ord(character) for character in uci)))
+
+
+def _san_lines(board: chess.Board, lines: tuple[tuple[str, ...], ...]) -> tuple[tuple[str, ...], ...]:
+    result = []
+    for line in lines:
+        replay = board.copy(stack=True)
+        san_line = []
+        for uci in line:
+            move = chess.Move.from_uci(uci)
+            if move not in replay.legal_moves:
+                raise ValueError("alternative evidence line contains an illegal move")
+            san_line.append(replay.san(move))
+            replay.push(move)
+        result.append(tuple(san_line))
+    return tuple(result)
+
+
+def _order_explanations(explanations: tuple[Explanation, ...]) -> tuple[Explanation, ...]:
+    priority = {
+        "position.in_check": 0,
+        "position.mate_in_one": 1,
+        "candidate.allows_opponent_mate_in_one": 2,
+    }
+    return tuple(sorted(explanations, key=lambda item: priority.get(item.catalog_id, 3)))
+
+
+def _score_signature(score: EngineScore) -> tuple[int | None, str | None, int]:
+    cp_sign = None if score.centipawns is None else (1 if score.centipawns > 0 else -1 if score.centipawns < 0 else 0)
+    return cp_sign, score.mate_winner, 0 if score.mate is None else (1 if score.mate > 0 else -1)
+
+
+def _score_key(score: EngineScore, mover: chess.Color) -> tuple[int, int]:
+    sign = 1 if mover == chess.WHITE else -1
+    if score.mate_winner:
+        wins = (score.mate_winner == ("white" if mover else "black"))
+        return (2 if wins else -2, -(abs(score.mate or 0)) if wins else abs(score.mate or 0))
+    return (0, sign * (score.centipawns or 0))
