@@ -334,14 +334,17 @@ Search stability across depths indicates engine uncertainty, not human
 executability. For positions with at most seven pieces, Syzygy WDL/DTZ replaces
 heuristic outcome analysis.
 
-Persist static and engine analysis separately in SQLite. Engine cache identity
-includes FEN, Stockfish binary/version, NNUE, options, search limit, root moves, and
-analyzer version. Preserve the fifty-move counter for tablebase use. Stream shallow
-results, cancel obsolete foreground work, and deepen cached positions incrementally.
+Persist only useful records as versioned UTF-8 JSON, separate from source PGN/FEN.
+Engine cache identity includes FEN, Stockfish binary/version, NNUE, options, search
+limit, root moves, and analyzer version. Preserve the fifty-move counter for
+tablebase use. Stream shallow results, cancel obsolete foreground work, and deepen
+cached positions incrementally. Add a database only when measured query or volume
+needs justify it.
 
 ### Stack
 
-- **Backend:** Python, python-chess, Stockfish, Pydantic, SQLite.
+- **Backend:** Python, python-chess, Stockfish, and Pydantic at validated boundaries.
+- **Storage:** PGN/FEN interchange and versioned JSON records; no initial database.
 - **Local API:** FastAPI with streamed static and verified updates.
 - **Frontend:** TypeScript/HTML with arrows, labels, heatmaps, and before/after overlays.
 - **Packaging:** optional thin WebView2 shell after the interaction is proven; no C#

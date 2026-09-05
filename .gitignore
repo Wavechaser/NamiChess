@@ -1,0 +1,21 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Machine-local tools and state
+.tools/
+local-data/
+*.local.json
+
+# Editors and Windows
+.idea/
+.vscode/
+Thumbs.db
+Desktop.ini
