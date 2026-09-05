@@ -4,6 +4,13 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Board assets — 2026-09-06
+
+- Bundled Maxime Chupin's GPL-3.0-only MPChess SVG piece set with pinned provenance and
+  redistribution notices.
+- Defined one twelve-file SVG contract and rendering path for the bundled default
+  and app-owned custom themes.
+
 ### Project layout — 2026-09-05
 
 - Moved the `namichess` package from the `src` layout to the repository root and

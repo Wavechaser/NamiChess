@@ -11,9 +11,9 @@ navigation. A process-local or loopback presentation bridge must not become
 remotely reachable.
 
 The narrow untrusted surface is local PGN, FEN, settings, explanation content,
-and saved-analysis bytes. The main risks are malformed input, accidental file
-damage, source/output confusion, and turning a presentation or parser boundary
-into broader filesystem or process authority.
+custom SVG themes, and saved-analysis bytes. The main risks are malformed input,
+accidental file damage, source/output confusion, and turning a presentation or
+parser boundary into broader filesystem or process authority.
 
 High Stockfish CPU use is expected while analysis is active. Work budgets,
 cancellation, and foreground priority protect responsiveness; they are not a
@@ -24,6 +24,8 @@ not a safety or security incident.
 
 - Parse chess files and JSON as data. Explanation templates contain no executable
   expressions or code-loading behavior.
+- Treat custom SVGs as images, not inline application markup. Require the fixed
+  piece-theme contract and block scripts and external resource loading.
 - Keep imported PGN/FEN, app-owned games, settings, metadata, and derived analysis
   distinct. Never overwrite an imported source implicitly.
 - Accept paths only from explicit native CLI arguments or GUI file pickers. A

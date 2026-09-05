@@ -365,6 +365,8 @@ are separate versioned JSON. Imports are never overwritten implicitly.
   analysis, and metadata; no initial database.
 - **Local API:** FastAPI with streamed static and verified updates.
 - **Frontend:** TypeScript/HTML with arrows, labels, heatmaps, and before/after overlays.
+- **Pieces:** bundled GPL-3.0-only MPChess SVGs, with custom local SVG themes using the
+  same twelve-file contract and renderer.
 - **Packaging:** optional thin WebView2 shell after the interaction is proven; no C#
   domain layer.
 
@@ -456,7 +458,8 @@ keep whole-move value distinct from destination-square attribution.
 - **SEE correctness:** unsupported edge cases remain explicit.
 - **Cost:** stream static results immediately and reserve deep search for critical positions.
 - **Licensing:** python-chess is GPL-3-or-later and Stockfish is GPL-3; decide
-  distribution obligations before packaging. Personal use is unaffected.
+  distribution obligations before packaging. MPChess artwork is GPL-3.0-only with its
+  source and license preserved. Personal use is unaffected.
 
 DecodeChess is the closest commercial product. The differentiator is
 practical-choice ranking by configured continuation burden, explained through a

@@ -66,6 +66,16 @@ engine line.
   supplies structured facts and evidence; changing prose does not change chess
   policy or require editing Python code.
 
+## Board appearance
+
+- Use the bundled MPChess SVG set by default.
+- Let users import and select a custom SVG piece set locally.
+- Require every theme to provide the same twelve white/black piece assets. Built-in
+  and custom themes use the same board renderer and differ only in resolved asset
+  location.
+- Keep custom themes in app-owned user data and allow restoring the bundled
+  default without affecting games or analysis.
+
 ## Chess files and saved data
 
 - Import and parse one or more games from PGN, including headers, moves, and

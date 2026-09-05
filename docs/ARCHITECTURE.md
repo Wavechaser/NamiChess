@@ -86,6 +86,8 @@ changes do not reinterpret prior results.
 User settings live in versioned UTF-8 `settings.json`, separate from games and
 analysis. Writes use temporary-file replacement. Invalid settings produce a
 visible fallback while preserving the invalid file for recovery.
+Appearance preferences such as the selected piece theme share the settings file
+but remain separate from `AnalysisPreferences` and never affect `AnalysisPolicy`.
 
 ## 4. Explanation content
 
@@ -99,7 +101,28 @@ executable expressions, paths, or unverified claims. Startup validation and test
 ensure every identifier exists and every placeholder matches its typed values.
 Bundled explanation content is installation data, not mutable user data.
 
-## 5. PGN, FEN, and local records
+## 5. Piece themes
+
+MPChess is the bundled default under GPL-3.0-only. Bundled assets live at
+`namichess/interfaces/web/assets/pieces/mpchess/`; their attribution, pinned
+source revision, and license travel with every distribution.
+
+Every theme implements one data contract: twelve standalone SVG files named
+`wK.svg`, `wQ.svg`, `wR.svg`, `wB.svg`, `wN.svg`, `wP.svg`, and their `b*`
+counterparts. A theme resolver maps the selected theme and logical piece code to
+an opaque local asset URL. The board always uses the same image renderer; it has
+no MPChess-, custom-, or per-piece rendering branches.
+
+Custom-theme import starts from a user-selected directory, validates the twelve
+required SVG names, roots and view boxes, then copies them and any supported
+license notice into
+`user-data/themes/<theme-id>/`. Settings retain the built-in theme name or an
+app-owned custom theme identifier, never an arbitrary source path. SVGs are
+rendered as images rather than injected as inline markup, under a policy that
+blocks scripts and external resources. Invalid themes do not replace the active
+theme, and the bundled default is always recoverable.
+
+## 6. PGN, FEN, and local records
 
 PGN import parses one or more games, headers, moves, and relevant variation trees
 into validated positions. FEN import parses and validates a single position,
@@ -117,6 +140,7 @@ user-data/
   games/
   positions/
   analysis/
+  themes/
 ```
 
 Persistence adapters are injected at the composition root. Interfaces establish
@@ -124,7 +148,7 @@ path authority through native CLI arguments or GUI file pickers; a browser or
 local API cannot submit arbitrary paths. SQLite remains deferred until measured
 volume or query needs make JSON and simple indexes insufficient.
 
-## 6. Execution model
+## 7. Execution model
 
 The Python application owns a nonblocking, bounded, cancelable analysis queue.
 Initially it manages one persistent Stockfish child process and streams partial
@@ -145,7 +169,7 @@ bottleneck. Measured CPU-heavy batch work may use process workers; Python thread
 are for orchestration and I/O, not assumed multicore speedup. Multiple Stockfish
 processes are added only for a demonstrated batch-analysis need.
 
-## 7. Ownership and verification
+## 8. Ownership and verification
 
 The domain owns chess truth. Analysis owns evidence and verification. The
 application owns policy resolution, sequencing, and durable record assembly.
@@ -160,6 +184,8 @@ includes:
   priority, and resource limits;
 - preset resolution, sparse overrides, settings fallback, and atomic replacement;
 - explanation identifier and placeholder completeness;
+- bundled and custom theme contract validation, package inclusion, safe image
+  rendering, and fallback to MPChess;
 - malformed and multi-game PGN, FEN field validation, notation/header round trips,
   ply selection, and prevention of source overwrite.
 

@@ -14,6 +14,7 @@ The project is in pre-implementation setup. The product definition is in
 - `python-chess` available for board representation and rules.
 - Stockfish 18 installed as an ignored machine-local tool.
 - Product, architecture, feature, defense, and defect documents established.
+- MPChess SVG pieces bundled for the future board interface.
 - Position analysis and user interfaces are not implemented yet.
 
 ## Requirements
@@ -78,4 +79,5 @@ and exports use distinct user-confirmed paths.
 
 NamiChess is licensed under GPL-3.0-or-later. Stockfish and python-chess have
 their own GPL distribution obligations; packaging must preserve those licenses
-and corresponding-source requirements.
+and corresponding-source requirements. Bundled third-party artwork is identified
+in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

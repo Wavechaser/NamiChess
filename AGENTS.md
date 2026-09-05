@@ -21,6 +21,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
   meet.
 - `namichess/interfaces/`: CLI, local API, web frontend assets, and optional
   Windows shell. Interfaces render application views and own no chess policy.
+- `namichess/interfaces/web/assets/pieces/`: bundled piece themes. Each theme
+  contains the same twelve named SVG files and an adjacent license when required.
 - `namichess/content/`: bundled, editable explanation text keyed by stable
   identifiers. Content files contain no chess policy or executable expressions.
 - `namichess/composition.py`: the sole composition root; it may import all
@@ -31,6 +33,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - `.tools/`: ignored machine-local tools such as Stockfish; never package or
   commit these binaries.
 - User and development data never lives in the source tree.
+- Custom piece themes are user data. Validate and copy them into app-owned local
+  storage; do not add theme-specific rendering paths.
 - Use `namichess` for package names, modules, variables, and CLI commands, and
   `NamiChess` for display text. Do not introduce alternate hyphenated,
   underscored, or casing variants without an external compatibility requirement.
@@ -66,6 +70,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - Implement only the current phase. Do not add speculative frameworks,
   extension points, databases, distributed workers, or generalized protocols.
 - Make surgical changes. Every changed line must trace to the current task.
+- Preserve third-party authorship, source revision, and license notices for every
+  redistributed asset.
 - Prefer frozen dataclasses and enums for internal facts. Use Pydantic only at
   external or persistence boundaries where validation is useful.
 - Construct infrastructure only in `composition.py`. Domain and analysis code
