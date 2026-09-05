@@ -212,6 +212,15 @@ volume or query needs make JSON and simple indexes insufficient.
 
 ## 7. Execution model
 
+The implemented `StockfishAdapter` owns its child for preparation, search,
+cancellation, and shutdown. `prepare()` completes startup/configuration before
+the application starts its outer search deadline. Typed reports distinguish
+completed, canceled, failed, and unsupported analysis; scores and bound direction
+use White's perspective. Every PV is checked against legal history and any
+root-move restriction. Failed or canceled work settles before reuse; stop/quit
+grace exhaustion terminates only the owned child. Request sequencing, stale-view
+filtering, and the outer five-second envelope belong to the application controller.
+
 The Python application owns a nonblocking, bounded, cancelable analysis queue.
 Initially it manages one persistent Stockfish child process and streams partial
 results to the interface. Foreground work takes priority, and a newer request may

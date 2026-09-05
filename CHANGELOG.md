@@ -4,6 +4,13 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Persistent Stockfish adapter — 2026-09-06
+
+- Added an asynchronous, reusable engine adapter with legal history/PV checks,
+  perspective-explicit scores and bounds, and the 32-piece engine boundary.
+- Covered startup, cancellation, failure, and shutdown ownership with fake-engine
+  regressions and guarded ordinary/composed-position Stockfish integration tests.
+
 ### Shared static position facts — 2026-09-06
 
 - Added identity-bearing geometric attacks, actual-side legal moves, absolute

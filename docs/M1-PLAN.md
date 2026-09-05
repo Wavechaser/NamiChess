@@ -153,7 +153,7 @@ immediately. Ctrl+C cancels active analysis and otherwise clears input.
 | M1-01 | Consistent documentation and contracts | — | Contract cross-check; baseline suite | complete |
 | M1-02 | Navigable CLI session for validated PGN/FEN | M1-01 | Parser fixtures; session transcripts | complete |
 | M1-03 | Correct shared board facts and move changes | M1-02 | Structured mirrored fixtures | complete |
-| M1-04 | Bounded, cancelable persistent engine analysis | M1-02 | Fake lifecycle tests; real Stockfish | pending |
+| M1-04 | Bounded, cancelable persistent engine analysis | M1-02 | Fake lifecycle tests; real Stockfish | adapter verified; session integration pending |
 | M1-05 | Evidence-backed comparisons and tactical explanations | M1-03, M1-04 | Counterexample fixtures | pending |
 | M1-06 | Complete text/JSON analysis workflow | M1-05 | Consumer tests; Windows check | pending |
 
@@ -336,6 +336,12 @@ scope expansion, and unresolved regression risks.
 - Completed checkpoints: M1-01 (`7f15bd6`) and M1-02 passed baseline verification
   and independent adversarial review; the root agent records checkpoint commits.
 - Remaining implementation checkpoints: M1-04 through M1-06.
+- M1-04 adapter evidence: independent review and re-review closed startup,
+  cancellation, stalled-stream, overlap, and shutdown findings. Focused guarded
+  suite: 39 passed, including fifteen/twenty queens and nine pawns in both colors,
+  followed by legal-PV checks and process cleanup. Its adapter commit is a coherent
+  implementation increment; the full checkpoint gate remains open until shared
+  request sequencing and CLI cancellation are integrated and verified.
 - M1-03 evidence: shared session views expose `PositionFacts` and an optional
   prior-ply `MoveDelta`; `inspect <square>` filters those facts without board
   reconstruction. A pinned-knight consumer fixture distinguishes its geometric
