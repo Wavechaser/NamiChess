@@ -1,7 +1,21 @@
 # NamiChess Features
 
-Status: pre-implementation. Entries describe intended product behavior, not
-claims that it is implemented today.
+Status: M1 documentation checkpoint. Entries describe intended product behavior;
+all M1 runtime checkpoints remain unimplemented.
+
+## First milestone
+
+M1 is an interactive CLI position lab. It imports FEN and PGN, navigates games
+and variations, accepts composed standard-chess positions with unusual material,
+shows shared board facts and move deltas, and compares analyzed candidates with
+bounded Stockfish evidence. Text and versioned JSON render the same application
+views so a later GUI can add arrows and highlights without duplicating chess
+policy. Detailed gates and defaults live in [M1-PLAN.md](M1-PLAN.md).
+
+M1 includes narrow threat reporting for checks, immediate mates, captures, legal
+replies, and consequences in analyzed lines. Comprehensive threat assessment,
+practical-best ranking, active recall, training, GUI overlays, SEE, persistence,
+and export are deferred. Syzygy integration and redistribution are excluded.
 
 ## Product aim
 
@@ -92,6 +106,7 @@ engine line.
 
 ## Training
 
+- Training begins after M1.
 - Use active recall: ask for controls, threats, and candidates before revealing
   verified misses.
 - Revisit important continuation nodes and distinguish omission, continuation,

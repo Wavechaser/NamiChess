@@ -1,6 +1,6 @@
 # NamiChess — Core Product Spec
 
-**Version** 0.4 (draft) · **Date** 2026-09-05 · **Status** pre-implementation
+**Version** 0.5 (draft) · **Date** 2026-09-06 · **Status** M1 documentation checkpoint
 
 ## 1. Product
 
@@ -202,7 +202,7 @@ a shorter opaque line can lose to an adequate, steadfast alternative.
 
 Static search proposes tactics by enumerating checks, captures, direct attacks, and
 candidate sacrifices without pruning by material sign. A mate claim must consider
-every legal defence and be verified by Stockfish, Syzygy, or complete proof search.
+every legal defence and be verified by Stockfish or complete proof search.
 Selective forcing search never proves mate by itself.
 
 ### 2.7 Principles and closed positions
@@ -275,7 +275,7 @@ best move exists because several moves preserve the same outcome.
 
 ### 3.2 Training and review profile
 
-The first usable product includes active recall:
+Active recall is deferred until after the first milestone:
 
 1. Show a position under an optional clock.
 2. Ask the user to mark controls, urgent resources, and candidate moves.
@@ -332,13 +332,13 @@ features. Unsearched moves remain unknown, not bad.
 
 Use WDL expected score for outcome bands and centipawns as supporting evidence.
 Search stability across depths indicates engine uncertainty, not human
-executability. For positions with at most seven pieces, Syzygy WDL/DTZ replaces
-heuristic outcome analysis.
+executability. NamiChess does not integrate or redistribute Syzygy tablebases;
+near-best engine play is sufficient for the intended endgame guidance.
 
 Persist only useful records as versioned UTF-8 JSON, separate from source PGN/FEN.
 Engine cache identity includes FEN, Stockfish binary/version, NNUE, options, search
-limit, root moves, and analyzer version. Preserve the fifty-move counter for
-tablebase use. Stream shallow results, cancel obsolete foreground work, and deepen
+limit, root moves, and analyzer version. Preserve the fifty-move counter as part
+of the complete position state. Stream shallow results, cancel obsolete foreground work, and deepen
 cached positions incrementally. Add a database only when measured query or volume
 needs justify it.
 
@@ -357,6 +357,14 @@ PGN import parses one or more games, headers, moves, and relevant variations; FE
 import validates a complete position. Users may select any imported ply. App-owned
 games and positions remain PGN/FEN, while settings, derived analysis, and metadata
 are separate versioned JSON. Imports are never overwritten implicitly.
+
+M1 import is strict. FEN requires all six fields and is never silently repaired.
+Every PGN game requires exactly one terminating mainline result marker, including
+zero-move games; any `Result` header must agree. Reject malformed tags, unmatched
+comments or variations, illegal or ambiguous SAN, missing or misplaced results,
+parser errors, trailing movetext, and silent parser truncation. Errors identify
+the game and source location when available, explain the problem, and ask the
+user to correct and reload. Input repair is outside M1.
 
 ### Stack
 
@@ -380,29 +388,34 @@ are separate versioned JSON. Imports are never overwritten implicitly.
 - Define thresholds, perspectives, unsupported cases, and metric semantics.
 - Establish golden positions with expected causal explanations.
 
-### Phase 1 — Position lab
+### Phase 1 — CLI position lab (M1)
 
-- Load FEN/PGN and select a ply.
-- Implement timed quiz/reveal, the piece–square graph, `SquareInterest`,
-  `PieceProfile`, move deltas, SEE, latent rays, principles, and bilateral threats.
-- Render interactive overlays and deterministic regression artifacts.
+- Load validated FEN and multi-game PGN, preserve history and variations, select
+  a ply, and accept composed standard-chess layouts with unusual material.
+- Provide a persistent CLI with ASCII boards, navigation, square inspection,
+  trial moves, candidate comparison, and a versioned structured snapshot shared
+  with later interfaces.
+- Compute geometric attacks, legal access, absolute pins, checks, and move deltas.
+- Add bounded, cancelable Stockfish survey and focused verification immediately;
+  rank analyzed candidates and explain only concrete, evidence-backed tactical
+  consequences. See `M1-PLAN.md` for the checkpoint contracts.
 
-### Phase 2 — Practical choice
+### Phase 2 — Rich position understanding
 
-- Add progressive broad-to-deep Stockfish analysis, action heatmaps, targeted probes,
-  outcome bands, candidate contrast, and mate verification.
-- Add complexity traversal, bottleneck reporting, and line/plan switching.
-- Compare practical-best with engine-best.
+- Add SEE, latent rays, `SquareInterest`, `PieceProfile`, principles, broader
+  bilateral threat assessment, action heatmaps, and interactive GUI overlays.
+- Add complexity traversal, bottleneck reporting, line/plan switching, and
+  practical-best comparison only after their evidence contracts are validated.
 
-### Phase 3 — Personal corpus
+### Phase 3 — Training and personal corpus
 
-- Import recent games; extract omissions and continuation failures.
+- Add active recall, import recent games, and extract omissions and continuation failures.
 - Produce an explicit review history and personal quiz queue.
 - Use selected presets and overrides to control subsequent analysis.
 
 ### Phase 4 — Validated expansion
 
-- Add trajectory analysis and local Syzygy only when validated by real use.
+- Add trajectory analysis only when validated by real use.
 
 ## 6. Reference tests
 

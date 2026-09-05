@@ -4,6 +4,14 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M1 documentation — 2026-09-06
+
+- Defined the CLI-first M1 checkpoint sequence for PGN/FEN navigation, shared
+  position views, static facts, and bounded Stockfish candidate evidence.
+- Recorded composed-position support and the 32-occupied-square engine boundary.
+- Deferred GUI, recall/training, practical-best ranking, broad threat assessment,
+  SEE, and persistence; excluded Syzygy integration and redistribution.
+
 ### Board assets — 2026-09-06
 
 - Bundled Maxime Chupin's GPL-3.0-only MPChess SVG piece set with pinned provenance and

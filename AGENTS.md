@@ -119,6 +119,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - `docs/chess-copilot-spec.md` owns the core product specification.
 - `docs/FEATURES.md` owns current and planned product behavior.
 - `docs/ARCHITECTURE.md` owns durable boundaries, data flow, and invariants.
+- `docs/M1-PLAN.md` owns the approved M1 checkpoint sequence, acceptance gates,
+  verification evidence, and resumption state.
 - `docs/DEFENSE.md` owns the deliberately narrow trust and non-goal model.
 - `docs/BUGS.md` records confirmed substantive defects, not ideas or tasks.
 - `CHANGELOG.md` records completed task-level changes newest-first.

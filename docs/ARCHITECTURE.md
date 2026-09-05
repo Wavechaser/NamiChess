@@ -1,6 +1,6 @@
 # NamiChess Architecture
 
-**Status:** pre-implementation · **Scope:** durable boundaries and data flow
+**Status:** M1 documentation checkpoint · **Scope:** durable boundaries and data flow
 
 ## 1. System shape
 
@@ -28,7 +28,15 @@ interfaces  →  application  →  analysis  →  domain
 No initial database, remote service, plugin system, distributed worker, or
 generalized message bus is required.
 
+M1 proves these boundaries through a persistent CLI. The application exposes
+immutable `PositionContext`, `SessionView`, `PositionFacts`, `MoveDelta`,
+`AnalysisPolicy`, `AnalysisResult`, and `Explanation` values. These carry stable
+position, piece, square, move, request, revision, and evidence references. They
+never expose mutable boards, PGN nodes, UCI processes, or terminal styling.
+
 ## 2. Analysis flow
+
+The following is the future target flow after M1:
 
 ```text
 PGN/FEN/board input + resolved settings
@@ -60,6 +68,35 @@ Analysis starts with the user-selected candidate breadth and verification effort
 Critical, unstable, sacrificial, or shallow/deep-disputed claims receive deeper
 probes. Long forcing lines may remain legible; opaque branches switch to plans,
 triggers, and durable routes. Unsearched moves remain unknown.
+
+For M1, policy is fixed rather than user-configurable: one engine and thread,
+64 MiB hash, and five seconds per request. One second surveys up to five root
+candidates; remaining time is divided across focused root-move searches,
+including up to two explicit comparison moves. M1 reports analyzed rank and
+coverage only. Adequacy, practical executability, and comprehensive threat
+classification remain later-phase behavior.
+
+M1 uses the narrower flow:
+
+```text
+strict PGN/FEN validation and selected position context
+                 ↓
+shared static facts and move delta
+                 ↓
+bounded Stockfish survey and focused probes
+                 ↓
+ranked analyzed evidence with explicit coverage
+                 ↓
+shared text/JSON-ready application view
+```
+
+One outer five-second monotonic search deadline starts after lazy engine startup
+and configuration. Survey consumes at most one second and returns at most five
+roots. Focused probes cover the unique UCI-sorted union of those roots and up to
+two requested comparison moves, capped at seven; no probe starts after deadline.
+Deterministic candidate IDs remain stable within a request while rank may change.
+Certified rank requires exact typed scores from the original mover's perspective
+and uses UCI as a tie-break; incomplete or bounded evidence remains provisional.
 
 ## 3. Settings and analysis policy
 
@@ -129,6 +166,22 @@ into validated positions. FEN import parses and validates a single position,
 including side to move, castling rights, en-passant state, and move counters.
 Users can select any resulting ply for analysis.
 
+The M1 session keeps the parsed starting position, move history, selected node,
+and in-memory trial variations. Loads are transactional and every position
+change advances a revision that invalidates stale analysis. FEN and PGN imports
+are strict: invalid, incomplete, unparseable, or silently truncated content is
+rejected with an actionable error, and M1 never repairs input. Composed positions
+use ordinary standard-chess move generation and terminal detection; excess
+material is accepted without requiring historical reachability. Engine analysis
+is explicitly unsupported above 32 occupied squares, while navigation and static
+inspection remain available.
+
+A standalone FEN appears as one root-only game. Every successful load, game/node
+selection, navigation, or trial move enqueues analysis. An explicit `analyze`
+retries or restarts analysis, and `compare` starts a request without moving the
+session cursor. Backward `goto` walks ancestors; forward `goto` and `end` follow
+child 0 from the current selected node.
+
 Imported files are read-only inputs. App-owned chess content remains PGN or FEN;
 settings, derived analysis, training responses, and metadata use separate,
 versioned JSON records linked by app-owned identifiers. Save and export always
@@ -154,6 +207,18 @@ The Python application owns a nonblocking, bounded, cancelable analysis queue.
 Initially it manages one persistent Stockfish child process and streams partial
 results to the interface. Foreground work takes priority, and a newer request may
 cancel obsolete work. The interface never waits synchronously for engine search.
+
+M1 permits one running request and one pending replacement. Results include the
+request and position revision, so late results cannot update a newer position.
+Engine states are idle, running, completed, canceled, failed, or unsupported.
+Failure leaves static inspection usable, and a later explicit request retries
+startup without an automatic restart loop.
+
+The CLI renders the shared application view as ASCII text or one
+`schema_version: 1` JSON snapshot. Squares use algebraic coordinates, moves carry
+UCI and SAN, and scores use tagged centipawn or mate values with explicit
+perspective. Progress belongs on stderr and command results on stdout. A later
+GUI consumes the same semantic references to draw arrows and highlights.
 
 Ordinary CPython is GIL-bound for CPU-heavy Python bytecode. Stockfish is a native
 external process, so its own search threads are outside the Python GIL. The engine

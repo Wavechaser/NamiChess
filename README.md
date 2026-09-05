@@ -5,8 +5,10 @@ purpose is to explain what a position permits, what a move changes, which threat
 matter, and which sufficiently strong continuation a human can understand and
 keep playing.
 
-The project is in pre-implementation setup. The product definition is in
-[docs/chess-copilot-spec.md](docs/chess-copilot-spec.md).
+The project is at the first milestone's documentation checkpoint. Runtime
+implementation has not started. The product definition is in
+[docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and the decision-complete
+milestone gates are in [docs/M1-PLAN.md](docs/M1-PLAN.md).
 
 ## Current state
 
@@ -15,7 +17,8 @@ The project is in pre-implementation setup. The product definition is in
 - Stockfish 18 installed as an ignored machine-local tool.
 - Product, architecture, feature, defense, and defect documents established.
 - MPChess SVG pieces bundled for the future board interface.
-- Position analysis and user interfaces are not implemented yet.
+- M1 is specified as a CLI-first PGN/FEN position lab with bounded Stockfish
+  analysis; its runtime checkpoints are not implemented yet.
 
 ## Requirements
 
@@ -70,6 +73,7 @@ and exports use distinct user-confirmed paths.
 - [Product specification](docs/chess-copilot-spec.md)
 - [Features](docs/FEATURES.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [M1 implementation plan](docs/M1-PLAN.md)
 - [Defense](docs/DEFENSE.md)
 - [Bugs](docs/BUGS.md)
 - [Changelog](CHANGELOG.md)
