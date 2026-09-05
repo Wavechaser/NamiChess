@@ -1,9 +1,9 @@
 # NamiChess
 
-NamiChess is a local chess-analysis and training project for players around
-1200–1400 Elo. Its purpose is to explain what a position permits, what a move
-changes, which threats matter, and which sufficiently strong continuation a
-human can understand and keep playing.
+NamiChess is a local, rating-agnostic chess-analysis and training project. Its
+purpose is to explain what a position permits, what a move changes, which threats
+matter, and which sufficiently strong continuation a human can understand and
+keep playing.
 
 The project is in pre-implementation setup. The product definition is in
 [chess-copilot-spec.md](chess-copilot-spec.md).
@@ -59,9 +59,10 @@ services at runtime.
 
 ## Persistence
 
-SQLite is deliberately deferred. PGN and FEN provide chess interchange; small
-app-owned metadata and derived analysis will use versioned UTF-8 JSON. Imported
-games are read-only inputs, and exports use distinct user-confirmed paths.
+SQLite is deliberately deferred. NamiChess imports, parses, saves, and exports
+PGN games and FEN positions; small app-owned settings, metadata, and derived
+analysis use separate versioned UTF-8 JSON. Imported files are read-only inputs,
+and exports use distinct user-confirmed paths.
 
 ## Documentation
 

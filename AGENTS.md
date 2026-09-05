@@ -2,9 +2,9 @@
 
 ## Project Goal
 
-Build a local chess-analysis and training tool for approximately 1200–1400 Elo
-players. NamiChess explains board relationships, threats, plans, and practical
-continuations instead of merely reproducing engine rankings.
+Build a local, rating-agnostic chess-analysis and training tool. NamiChess
+explains board relationships, threats, plans, and practical continuations
+instead of merely reproducing engine rankings.
 
 The analysis backend is platform- and interface-agnostic. Windows 11-specific
 launch, GUI, packaging, and file-picker behavior stays in interface adapters.
@@ -21,6 +21,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
   meet.
 - `src/namichess/interfaces/`: CLI, local API, web frontend assets, and optional
   Windows shell. Interfaces render application views and own no chess policy.
+- `src/namichess/content/`: bundled, editable explanation text keyed by stable
+  identifiers. Content files contain no chess policy or executable expressions.
 - `src/namichess/composition.py`: the sole composition root; it may import all
   layers to wire concrete engines, storage, and interfaces.
 - `tests/`: pytest tests mirroring package boundaries. Reusable FEN/PGN inputs
@@ -48,6 +50,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
 - Do not add SQLite until measured data volume or query needs justify it.
 - PGN and FEN remain standard chess interchange. Small app-owned records use
   versioned UTF-8 JSON with explicit typed readers and writers.
+- Store user settings separately from games and derived analysis. Presets resolve
+  to immutable per-job policies; saved analyses retain the resolved policy.
 - Never modify an imported game file in place. Save or export to a distinct,
   user-confirmed destination.
 - Keep original chess content separate from derived analysis and user metadata.
@@ -68,6 +72,8 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
   executable path, or UCI representation.
 - Background analysis is bounded and cancelable. A newer foreground request may
   supersede obsolete work.
+- Keep Python orchestration nonblocking. Stockfish owns its explicitly budgeted
+  native threads; use process workers only for measured CPU-heavy Python work.
 - Use PowerShell and native Windows paths for project commands. Do not introduce
   Bash, WSL, CMD, or Unix-only workflows without a concrete need.
 
@@ -78,6 +84,9 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
   access belongs in the runtime product.
 - Defend the narrow local-file boundary and prevent accidental source/destination
   confusion. Bound analysis work enough to keep the UI responsive.
+- Do not claim protection from motivated adversaries, same-user hostile code, or
+  OS/runtime compromise. Do not let NamiChess amplify access into privilege
+  elevation, process execution, remote authority, or broader filesystem reach.
 - Do not add authentication, cryptographic protocols, hostile multi-tenant
   isolation, durable job custody, replay machinery, or defense-in-depth without
   a demonstrated product risk.

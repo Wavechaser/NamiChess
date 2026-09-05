@@ -1,6 +1,6 @@
 # NamiChess — Core Product Spec
 
-**Version** 0.3 (draft) · **Date** 2026-09-05 · **Status** pre-implementation
+**Version** 0.4 (draft) · **Date** 2026-09-05 · **Status** pre-implementation
 
 ## 1. Product
 
@@ -12,9 +12,10 @@ Engines answer "what is strongest under exact play." NamiChess answers:
 - Why is one reasonable move preferable to another?
 - Can this user understand and continue the resulting position?
 
-The target user is approximately 1200–1400. Search length is not human difficulty:
-a forcing mate in twelve may be easy to execute, while a three-move line containing
-one inexplicable quiet move may be unusable.
+The backend is rating-agnostic and adapts its search, disclosure, and continuation
+burden through explicit settings rather than an inferred skill profile. Search
+length is not human difficulty: a forcing mate in twelve may be easy to execute,
+while a three-move line containing one inexplicable quiet move may be unusable.
 
 NamiChess optimizes for **executable chess**:
 
@@ -272,7 +273,7 @@ outcome evidence      engine WDL/eval · SEE · verified line
 becomes branching or opaque. The tool may say that no instructionally meaningful
 best move exists because several moves preserve the same outcome.
 
-### 3.2 Training and error profile
+### 3.2 Training and review profile
 
 The first usable product includes active recall:
 
@@ -295,18 +296,18 @@ but expose criticality, sacrifice, surprise, threat recognition, and continuatio
 difficulty as separate facts. A PGN cannot establish whether the move was understood;
 quiz responses and later continuations provide that evidence.
 
-Begin personalization with transparent miss rates. Fit a regularized, recency-
-weighted model only after enough independent examples exist. Features include move
-width, bottleneck type, forcing cues, material sign, payoff distance, board distance,
-latent lines, plan changes, game phase, tactical density, time control, clock
-remaining, and time spent. Model coefficients are associations, not diagnoses.
-
-Trajectory analysis is added only if the corpus justifies it. Candidate signals are
-safe-mobility and restriction trends, repeated reactive decisions, and loss of plan
-options. Null-move counterfactuals are excluded in check and treated cautiously near
-zugzwang.
+Keep review data explicit: saved misses, continuation failures, decision context,
+and quiz responses may build a review queue, but the first product does not infer a
+multi-game skill model. Trajectory analysis is added only if real use justifies it.
 
 ## 4. Engine and application
+
+Users select `Foundation`, `Club`, or `Advanced`, then may override search effort,
+candidate breadth, continuation burden, visible explanation layers, and resource
+use. The application resolves the preset plus sparse overrides into an immutable
+policy for each job. Presets affect effort and presentation, never chess truth or
+tactical-verification requirements. Saved analyses retain the resolved policy and
+engine/analyzer identity.
 
 Stockfish is a persistent analysis service, not merely a final verifier. Its work
 is prioritized and progressive:
@@ -341,10 +342,27 @@ tablebase use. Stream shallow results, cancel obsolete foreground work, and deep
 cached positions incrementally. Add a database only when measured query or volume
 needs justify it.
 
+Ordinary CPython coordinates work through a bounded, cancelable queue and initially
+one persistent Stockfish child process. Stockfish uses explicitly budgeted native
+threads outside the Python GIL. Keep cheap Python board analysis sequential until
+profiling demonstrates a need for process workers; do not assume Python threads
+accelerate CPU-bound analysis.
+
+User-facing explanation prose lives in the bundled UTF-8 catalog
+`src/namichess/content/explanations.json`. Analysis emits stable explanation IDs,
+typed values, facts, and evidence. The catalog contains text templates only, so
+copy can change independently without becoming chess policy or executable code.
+
+PGN import parses one or more games, headers, moves, and relevant variations; FEN
+import validates a complete position. Users may select any imported ply. App-owned
+games and positions remain PGN/FEN, while settings, derived analysis, and metadata
+are separate versioned JSON. Imports are never overwritten implicitly.
+
 ### Stack
 
 - **Backend:** Python, python-chess, Stockfish, and Pydantic at validated boundaries.
-- **Storage:** PGN/FEN interchange and versioned JSON records; no initial database.
+- **Storage:** parsed PGN/FEN chess content plus separate versioned JSON settings,
+  analysis, and metadata; no initial database.
 - **Local API:** FastAPI with streamed static and verified updates.
 - **Frontend:** TypeScript/HTML with arrows, labels, heatmaps, and before/after overlays.
 - **Packaging:** optional thin WebView2 shell after the interaction is proven; no C#
@@ -377,12 +395,11 @@ needs justify it.
 ### Phase 3 — Personal corpus
 
 - Import recent games; extract omissions and continuation failures.
-- Produce the error profile and personal quiz queue.
-- Let observed errors select the next metrics.
+- Produce an explicit review history and personal quiz queue.
+- Use selected presets and overrides to control subsequent analysis.
 
-### Phase 4 — Personalization
+### Phase 4 — Validated expansion
 
-- Fit findability only when supported by the dataset.
 - Add trajectory analysis and local Syzygy only when validated by real use.
 
 ## 6. Reference tests
@@ -427,8 +444,6 @@ keep whole-move value distinct from destination-square attribution.
 
 ## 7. Boundaries and risks
 
-- **No live assistance:** completed games, imported positions, and explicitly
-  engine-assisted computer training only; never an ongoing human game.
 - **No LLM board reasoning:** language models may render verified structured facts.
 - **No psychological opponent model:** analyze consequences and response burden.
 - **No annotation chasing:** `!` and `!!` may be imported, never optimized or treated
@@ -443,7 +458,7 @@ keep whole-move value distinct from destination-square attribution.
 - **Licensing:** python-chess is GPL-3-or-later and Stockfish is GPL-3; decide
   distribution obligations before packaging. Personal use is unaffected.
 
-DecodeChess is the closest commercial product; Maia is relevant if human move
-prediction is later expanded. The differentiator is practical-choice ranking by
-personal continuation burden, explained through a verified piece–square causal
-model and coupled with omission and continuation training.
+DecodeChess is the closest commercial product. The differentiator is
+practical-choice ranking by configured continuation burden, explained through a
+verified piece–square causal model and coupled with omission and continuation
+training.
