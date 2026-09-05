@@ -1,6 +1,6 @@
 # M1 — Interactive CLI Position Analysis
 
-**Status:** M1-01 complete; M1-02 next  
+**Status:** M1-01 and M1-02 complete; M1-03 and M1-04 under review
 **Last updated:** 2026-09-06
 
 This document owns M1's implementation sequence, acceptance gates, recorded
@@ -151,7 +151,7 @@ immediately. Ctrl+C cancels active analysis and otherwise clears input.
 | ID | Accepted outcome | Dependency | Primary verification | Status |
 |---|---|---|---|---|
 | M1-01 | Consistent documentation and contracts | — | Contract cross-check; baseline suite | complete |
-| M1-02 | Navigable CLI session for validated PGN/FEN | M1-01 | Parser fixtures; session transcripts | pending |
+| M1-02 | Navigable CLI session for validated PGN/FEN | M1-01 | Parser fixtures; session transcripts | complete |
 | M1-03 | Correct shared board facts and move changes | M1-02 | Structured mirrored fixtures | pending |
 | M1-04 | Bounded, cancelable persistent engine analysis | M1-02 | Fake lifecycle tests; real Stockfish | pending |
 | M1-05 | Evidence-backed comparisons and tactical explanations | M1-03, M1-04 | Counterexample fixtures | pending |
@@ -181,7 +181,10 @@ baseline pass. Commit: `docs(m1): Define CLI analysis scope and checkpoint plan`
 Implement PGN/FEN parsing, session operations, ASCII board display, navigation,
 and legal trial moves. Read UTF-8 with optional BOM and CRLF; reject invalid
 encoding. Require six-field FEN, valid placement/state, nonnegative halfmove and
-positive fullmove counters. `fen` and `load` reject incomplete, invalid, or
+positive fullmove counters. Counters use canonical ASCII decimal without leading
+zeros (except halfmove `0`) and are capped at 1,000,000,000 so malformed input
+cannot create unbounded integers or overflow the later engine boundary. `fen`
+and `load` reject incomplete, invalid, or
 unparseable input with actionable errors; no M1 command repairs input.
 
 Preserve standard PGN headers, comments, NAGs, and nested variations. Headers
@@ -329,12 +332,16 @@ scope expansion, and unresolved regression risks.
 
 ## Resumption state
 
-- Current checkpoint: M1-02, pending implementation.
-- Completed checkpoint: M1-01 passed baseline verification and independent
-  adversarial documentation review; its commit is handled by the root agent.
-- Remaining implementation checkpoints: M1-02 through M1-06 pending.
-- Baseline evidence: the existing package/asset suite passes with
-  `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider` (2 tests).
+- Current checkpoint: M1-03; M1-04 adapter review proceeds independently.
+- Completed checkpoints: M1-01 (`7f15bd6`) and M1-02 passed baseline verification
+  and independent adversarial review; the root agent records checkpoint commits.
+- Remaining implementation checkpoints: M1-03 through M1-06 pending.
+- M1-02 evidence: strict import, session, native file boundary, and CLI tests pass.
+  Independent review's oversized-counter and normalization findings have focused
+  regressions. The root verified PowerShell interactive help, invalid-FEN rejection,
+  valid-FEN load, legal move, back, and quit. The full suite passed with normal
+  temporary-directory access (61 passed, 1 guarded-engine skip before the final
+  actionable-counter transcript regression; that focused suite passed 13 tests).
 - Ordinary verification: `.\.venv\Scripts\python.exe -m pytest -q`.
 - Required real-engine checkpoint command:
 
@@ -342,14 +349,13 @@ scope expansion, and unresolved regression risks.
   $env:NAMICHESS_TEST_ENGINE = (Resolve-Path '.\.tools\stockfish\stockfish-windows-x86-64-avx2.exe').Path
   .\.venv\Scripts\python.exe -m pytest -q
   ```
-- Environment note: ordinary pytest could not write its cache in the planning
-  environment; this was not a test failure. `prompt_toolkit` is not installed and
-  belongs to M1-02 dependency work.
+- Environment note: pytest cache remains disabled where workspace permissions
+  prevent cache writes. `prompt_toolkit` 3.x is now an application dependency.
 - Stockfish evidence: the composed-position, PGN-start, terminal, and cancellation
   probes above were completed during planning; M1-04 must preserve them as
   reproducible integration tests.
-- Next action: implement M1-02, first rechecking working-tree state and governing
-  instructions.
+- Next action: complete M1-03 static integration and M1-04 lifecycle review, then
+  land their separate checkpoint commits before the M1-05 candidate workflow.
 - Artifact locations: repository documentation and tests; planning probes are
   recorded here until M1-04 turns them into reproducible integration tests.
 - Blockers: none. Pytest cache permissions are an environment limitation.

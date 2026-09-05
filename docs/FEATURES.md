@@ -1,7 +1,7 @@
 # NamiChess Features
 
-Status: M1 documentation checkpoint. Entries describe intended product behavior;
-all M1 runtime checkpoints remain unimplemented.
+Status: M1 implementation. Strict PGN/FEN import and interactive navigation are
+implemented; static and engine-backed analysis checkpoints remain in progress.
 
 ## First milestone
 

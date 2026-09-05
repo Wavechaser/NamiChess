@@ -4,6 +4,13 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### PGN/FEN CLI navigation — 2026-09-06
+
+- Added strict, bounded PGN and FEN import with composed-material support,
+  transactional failures, retained histories, and immutable shared position views.
+- Added the interactive `namichess` CLI for ASCII board display, game/variation
+  navigation, and in-memory SAN/UCI trial moves without changing imported files.
+
 ### M1 documentation — 2026-09-06
 
 - Defined the CLI-first M1 checkpoint sequence for PGN/FEN navigation, shared

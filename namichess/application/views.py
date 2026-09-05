@@ -1,0 +1,42 @@
+"""Immutable session views shared by command-line and future GUI adapters."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+
+from namichess.domain.models import PiecePlacement, PositionContext
+
+
+class PositionStatus(str, Enum):
+    ACTIVE = "active"
+    CHECK = "check"
+    CHECKMATE = "checkmate"
+    STALEMATE = "stalemate"
+    INSUFFICIENT_MATERIAL = "insufficient_material"
+    SEVENTYFIVE_MOVES = "seventyfive_moves"
+    FIVEFOLD_REPETITION = "fivefold_repetition"
+
+
+@dataclass(frozen=True, slots=True)
+class GameSummary:
+    number: int
+    headers: tuple[tuple[str, str], ...]
+    recorded_result: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class SessionView:
+    revision: int
+    games: tuple[GameSummary, ...]
+    selected_game: int
+    selected_ply: int
+    position: PositionContext
+    pieces: tuple[PiecePlacement, ...]
+    board_rows: tuple[str, ...]
+    turn: str
+    status: PositionStatus
+    outcome: str | None
+    can_claim_fifty_moves: bool
+    can_claim_threefold_repetition: bool
+    variations: tuple[str, ...]

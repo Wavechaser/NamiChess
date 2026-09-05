@@ -5,20 +5,21 @@ purpose is to explain what a position permits, what a move changes, which threat
 matter, and which sufficiently strong continuation a human can understand and
 keep playing.
 
-The project is at the first milestone's documentation checkpoint. Runtime
-implementation has not started. The product definition is in
+The project is implementing its first milestone. Strict PGN/FEN import and
+interactive CLI navigation are available; analysis checkpoints remain in progress. The product definition is in
 [docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and the decision-complete
 milestone gates are in [docs/M1-PLAN.md](docs/M1-PLAN.md).
 
 ## Current state
 
-- Python package and test environment established.
+- Python package, test environment, and `namichess` CLI established.
 - `python-chess` available for board representation and rules.
 - Stockfish 18 installed as an ignored machine-local tool.
 - Product, architecture, feature, defense, and defect documents established.
 - MPChess SVG pieces bundled for the future board interface.
-- M1 is specified as a CLI-first PGN/FEN position lab with bounded Stockfish
-  analysis; its runtime checkpoints are not implemented yet.
+- M1 can strictly load and navigate PGN/FEN positions, including composed
+  standard-chess positions with unusual material. Stockfish analysis is the
+  next runtime checkpoint.
 
 ## Requirements
 
@@ -56,6 +57,18 @@ Verify the environment:
 .\.venv\Scripts\python.exe -m pytest -q
 & '.\.tools\stockfish\stockfish-windows-x86-64-avx2.exe' compiler
 ```
+
+Start an interactive session:
+
+```powershell
+namichess
+```
+
+Use `load <path>` for a UTF-8 `.pgn` or `.fen` file, or enter a complete
+six-field position with `fen <FEN>`. `games`, `game <n>`, `start`, `end`,
+`next`, `back`, `goto <ply>`, `variations`, `variation <n>`, and
+`move <SAN-or-UCI>` navigate without changing the imported file. Run `help`
+inside the session for the compact command list.
 
 The application will later accept an explicit engine path, with this location
 as the development default. It will not download engines or contact remote

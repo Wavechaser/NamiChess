@@ -16,8 +16,12 @@ license-files = [
 ]
 dependencies = [
     "chess==1.11.2",
+    "prompt-toolkit>=3.0,<4",
     "python-chess==1.999",
 ]
+
+[project.scripts]
+namichess = "namichess.composition:main"
 
 [project.optional-dependencies]
 dev = [
