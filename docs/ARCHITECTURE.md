@@ -416,6 +416,17 @@ capture witnesses. `capture_available_every_reply` requires nonempty complete
 legal-reply coverage. It establishes availability, not a forced gain, safe
 capture, or exhaustive deeper continuation. Optional exchange evidence retains
 its target-square model and unsupported checking-capture cases separately.
+Application threat selection attaches at most two references to each candidate,
+ordered by conclusion and current target type. A reference binds the original
+position, request-scoped root position, root move, and raw threat index; its
+resolver rejects another request or branch. Selected records group response
+indices by observed outcome, defensive roles, capture actor/SAN, and target
+coordinate. The coordinate is only a grouping key: highlights use the retained
+response SquareRefs. Full responses and exchange limitations stay in local
+evidence, including threats outside the selection. Focused partials and final
+results can carry selections; candidates without local verification retain
+their structural mechanisms independently. Interfaces choose text length, not
+threat priority or defensive-response grouping.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.
