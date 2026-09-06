@@ -6,6 +6,10 @@ Production code and tests were left unchanged. Two independent implementation
 investigators used process-local substitutions; a separate reviewer challenged
 the recommendations.
 
+The five recommended reductions have since been implemented. See the
+[completed follow-up and acceptance record](obsolete/M2-EXPLANATION-PLAN.md).
+The measurements below describe the study baseline, not the resulting code.
+
 ## Findings and recommended order
 
 M2 has several worthwhile consolidation opportunities. The evidence favors

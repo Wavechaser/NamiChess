@@ -3,8 +3,9 @@
 Status: M1 and M2 complete. Strict import, navigation,
 static inspection, bounded engine analysis, candidate comparison, text details,
 shared JSON snapshots, shared orientation, structural continuity, bounded local
-exchange evaluation, focused local move or piece probes, and qualified local
-assessments are implemented.
+exchange evaluation, focused local move or piece probes, qualified local
+assessments, connected move accounts, automatic attention, and immediate
+candidate-root comparisons are implemented.
 
 The CLI acknowledges a running analysis once instead of appending elapsed-time
 updates. Completed results count recorded root probes and report their known
@@ -41,6 +42,21 @@ M2 centers on continuity: explain how each legal move changes piece relationship
 and what those changes enable. Its analysis and shared interface additions are
 implemented; acceptance evidence is recorded in the
 [historical milestone plan](obsolete/M2-PLAN.md).
+
+The CLI explains selected connected consequences of the move into the current
+position and automatically surfaces a few current concerns. Checks, attacked
+pieces without geometric defenders, pins, and supported line changes do not
+require an explicit square query. Shared typed selections retain position and
+piece identities, exact fact sources, and omission counts for future GUI
+highlights. Raw relationships remain available through `changes` and inspection.
+
+Candidate summaries compare immediate root positions before narrating engine
+continuations. Defender identities distinguish additions, removals, replacements,
+and defense left unchanged by one alternative when another changes it. Each
+candidate retains its root delta and connected account, including provisional
+candidates without a completed engine line. These structural observations do
+not explain engine preference or prove tactical safety; `details` retains the
+continuation evidence and the limits of each assessment.
 
 - Extend the shared before/after facts with newly attacked targets, gained and
   lost geometric defenders, cleared and blocked rays, changed blockers, and

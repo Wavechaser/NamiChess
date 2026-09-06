@@ -12,9 +12,12 @@ Completed changes are grouped by milestone, newest first.
 - Added bounded exchange and forcing analysis, focused move/piece probes, and
   qualified safety, trapping, material-exposure, and conflicting-duty assessments
   with explicit evidence, omissions, and coverage.
-- Added `changes`, richer inspection/details, concise explanations naming their
-  subjects, and read-only candidate-line previews. Shared schema-version-2 views
-  and navigation references prepare for a later GUI.
+- Added connected move accounts, automatic position attention, immediate
+  candidate comparisons, richer `changes`/inspection/details, and read-only
+  previews. Shared schema-version-3 views retain fact sources, identities,
+  selection limits, and navigation references for a later GUI.
+- Condensed progress and score output, and consolidated repeated catalog loads,
+  fact and assessment computation, PGN preparation, and exposure rendering.
 - Added persistent shared orientation defaults, import overrides, and local
   flipping without changing chess state or score perspective.
 - Formalized unique case-insensitive move shorthand in PGN imports and typed

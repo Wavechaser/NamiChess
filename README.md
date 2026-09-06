@@ -25,7 +25,8 @@ behavior is in [docs/COMMANDLINE.md](docs/COMMANDLINE.md).
   evidence details, and versioned JSON snapshots are available for review.
 - M2 adds identity-bearing relationship changes, bounded local exchange and
   forcing evidence, qualified safety/trapping/overload assessments, focused
-  probes, read-only candidate previews, and shared orientation defaults. The
+  probes, connected move accounts, automatic attention, structural candidate
+  comparisons, read-only previews, and shared orientation defaults. The
   interactive GUI remains future work.
 
 ## Requirements
@@ -103,6 +104,7 @@ paths.
 - [Historical M1 implementation plan](docs/obsolete/M1-PLAN.md)
 - [Historical M1 invariant review](docs/obsolete/M1-INTEGRATION-REVIEW.md)
 - [Historical M2 implementation and acceptance plan](docs/obsolete/M2-PLAN.md)
+- [Historical M2 consolidation and explanation follow-up](docs/obsolete/M2-EXPLANATION-PLAN.md)
 - [Defense](docs/DEFENSE.md)
 - [Bugs](docs/BUGS.md)
 - [Changelog](CHANGELOG.md)
