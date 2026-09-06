@@ -3,6 +3,7 @@ from pathlib import Path
 import chess
 import pytest
 
+from namichess.application import imports
 from namichess.application.imports import ImportError, import_pgn_text
 
 
@@ -14,6 +15,27 @@ def test_imports_multiple_games_comments_nags_variations_and_composed_fen() -> N
     assert len(document.games) == 2
     assert len(document.games[0].variations) == 2
     assert document.games[1].board().piece_at(0).symbol() == "K"
+
+
+def test_pgn_preparation_masks_once_and_preserves_projection_alignment_and_original_move_order(
+    monkeypatch,
+) -> None:
+    source = '[Event "one"]\n\n1. E4 { E5 is commentary } (1. D4 d5) e5 *\n\n[Event "two"]\n\n1. NF3+ *'
+    real_mask = imports._mask_non_movetext
+    calls = 0
+
+    def counted_mask(text: str) -> str:
+        nonlocal calls
+        calls += 1
+        return real_mask(text)
+
+    monkeypatch.setattr(imports, "_mask_non_movetext", counted_mask)
+    projected, original_moves = imports._prepare_pgn(source)
+
+    assert calls == 1
+    assert len(projected) == len(source)
+    assert projected == source.replace("E4", "e4", 1).replace("D4", "d4", 1).replace("NF3", "Nf3", 1)
+    assert tuple(original_moves) == ("E4", "D4", "d5", "e5", "NF3+")
 
 
 @pytest.mark.parametrize(

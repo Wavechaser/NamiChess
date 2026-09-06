@@ -237,15 +237,20 @@ def _validate_tokens(segment: str, game_number: int, expected_sans: tuple[str, .
     return result
 
 
-def _normalize_move_tokens(text: str) -> str:
+def _prepare_pgn(text: str) -> tuple[str, deque[str]]:
     masked = _mask_non_movetext(text)
     normalized = list(text)
+    moves: deque[str] = deque()
     for match in _RELAXED_MOVETEXT_REGEX.finditer(masked):
         token = match.group(0)
         projected = _project_move_token(token)
         if projected is not None:
             normalized[match.start():match.end()] = projected
-    return "".join(normalized)
+            end = match.end()
+            if end < len(text) and text[end] in "+#":
+                token += text[end]
+            moves.append(token)
+    return "".join(normalized), moves
 
 
 def _mask_non_movetext(text: str) -> str:
@@ -289,30 +294,10 @@ def _project_move_token(token: str) -> str | None:
     return token[0].upper() + lowered[1:]
 
 
-def _original_move_tokens(text: str) -> deque[str]:
-    masked = _mask_non_movetext(text)
-    moves: deque[str] = deque()
-    depth = 0
-    for match in _RELAXED_MOVETEXT_REGEX.finditer(masked):
-        token = match.group(0)
-        if token == "(":
-            depth += 1
-        elif token == ")":
-            depth = max(0, depth - 1)
-        elif token in {"1-0", "0-1", "1/2-1/2", "*"} and not depth:
-            continue
-        elif _project_move_token(token) is not None:
-            end = match.end()
-            if end < len(text) and text[end] in "+#":
-                token += text[end]
-            moves.append(token)
-    return moves
-
-
 def import_pgn_text(text: str) -> ImportedDocument:
     source = text.lstrip("\ufeff")
-    handle = io.StringIO(_normalize_move_tokens(source))
-    original_moves = _original_move_tokens(source)
+    projected, original_moves = _prepare_pgn(source)
+    handle = io.StringIO(projected)
     games: list[chess.pgn.Game] = []
     budget = _ParseBudget()
     while True:
