@@ -167,12 +167,7 @@ def render_details(result: AnalysisResult, number: int, catalog: ExplanationCata
     for assessment in result.trapping:
         lines.append(_render_assessment("assessment.trapping", assessment, catalog, result))
         for exposure in assessment.material_exposures:
-            model = catalog.render(Explanation("", f"assessment.material_model.{exposure.model}"))
-            lines.append(catalog.render(Explanation(
-                "", "assessment.material_exposure",
-                (("exit", exposure.exit_uci), ("reply", exposure.reply_uci),
-                 ("material", exposure.material_result), ("model", model)),
-            )))
+            lines.append(_render_material_exposure(exposure, catalog))
     for assessment in result.overload:
         lines.append(_render_assessment("assessment.overload", assessment, catalog, result))
     return "\n".join(lines)
@@ -198,6 +193,15 @@ def _render_assessment(
         placement = next(item for item in result.assessment_pieces if item.piece_id == piece_id)
         subject = f"{placement.square} {placement.color} {placement.piece_type}"
     return f"{subject}: {text}"
+
+
+def _render_material_exposure(exposure, catalog: ExplanationCatalog) -> str:
+    model = catalog.render(Explanation("", f"assessment.material_model.{exposure.model}"))
+    return catalog.render(Explanation(
+        "", "assessment.material_exposure",
+        (("exit", exposure.exit_uci), ("reply", exposure.reply_uci),
+         ("material", exposure.material_result), ("model", model)),
+    ))
 
 
 def _explanation_priority(explanation: Explanation) -> tuple[int, str]:
@@ -423,12 +427,7 @@ def render_inspection(
                 if assessment.piece == piece.piece_id:
                     lines.append(_render_assessment("assessment.trapping", assessment, catalog, view.analysis))
                     for exposure in assessment.material_exposures:
-                        model = catalog.render(Explanation("", f"assessment.material_model.{exposure.model}"))
-                        lines.append(catalog.render(Explanation(
-                            "", "assessment.material_exposure",
-                            (("exit", exposure.exit_uci), ("reply", exposure.reply_uci),
-                             ("material", exposure.material_result), ("model", model)),
-                        )))
+                        lines.append(_render_material_exposure(exposure, catalog))
             for assessment in view.analysis.overload:
                 if assessment.defender == piece.piece_id:
                     lines.append(_render_assessment("assessment.overload", assessment, catalog, view.analysis))

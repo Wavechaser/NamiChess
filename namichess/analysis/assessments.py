@@ -211,7 +211,7 @@ def assess_overload(context: PositionContext, exploration: LocalExploration) -> 
     _same_position(context, exploration)
     _validate_evidence_associations(exploration)
     facts = position_facts(context)
-    board, placements = replay_position(context)
+    board, _ = replay_position(context)
     if board.is_game_over(claim_draw=False):
         return ()
     actual = "white" if board.turn else "black"
@@ -236,7 +236,7 @@ def assess_overload(context: PositionContext, exploration: LocalExploration) -> 
         )
         if len({duty.defended for duty in duties}) < 2:
             continue
-        refs = _witnessed_duty_conflicts(context, exploration, defender, duties, placements)
+        refs = _witnessed_duty_conflicts(context, exploration, defender, duties)
         legal_roots = {move.uci() for move in board.legal_moves}
         completed_roots = {
             root.root_uci for root in exploration.roots
@@ -253,8 +253,7 @@ def assess_overload(context: PositionContext, exploration: LocalExploration) -> 
     return tuple(results)
 
 
-def _witnessed_duty_conflicts(context, exploration, defender, duties, placements) -> tuple[EvidenceRef, ...]:
-    del placements
+def _witnessed_duty_conflicts(context, exploration, defender, duties) -> tuple[EvidenceRef, ...]:
     refs = []
     for root in exploration.roots:
         for index, line in enumerate(root.lines):

@@ -28,7 +28,7 @@ from namichess.interfaces.orientation import BoardDisplayState, Orientation, Res
 from namichess.interfaces.settings import SettingsStore
 from namichess.interfaces.cli import (
     execute, execute_async, render_analysis, render_board, render_changes, render_details,
-    render_json, render_line_preview, run_cli,
+    render_inspection, render_json, render_line_preview, run_cli,
 )
 
 
@@ -524,6 +524,10 @@ def test_details_explains_material_exposure_model_without_raw_schema_token() -> 
     output = render_details(result, 1, CATALOG)
     assert "root gains plus target-square exchanges" in output
     assert "root_gain_plus_target_square_material" not in output
+    inspected = render_inspection(dataclasses.replace(view, analysis=result), "e2", CATALOG)
+    detail_exposure = next(line for line in output.splitlines() if "root gains plus" in line)
+    inspection_exposure = next(line for line in inspected.splitlines() if "root gains plus" in line)
+    assert inspection_exposure == detail_exposure
 
 
 def test_current_facts_include_mate_moves_checker_coordinates_and_failure_recovery() -> None:
