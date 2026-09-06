@@ -78,6 +78,24 @@ pins are explicit identity-bearing facts. Move deltas contain only recomputed
 before/after facts, including separately labeled slider attack changes; none of
 these values alone claims safety or tactical ownership.
 
+The implemented local exchange evaluator accepts one legal capture and searches
+capture and recapture decisions on that target square with a scratch board.
+Every branch uses legal moves, so moving blockers recompute slider x-rays and
+king safety, pins, en passant, and capture-promotions retain ordinary chess
+semantics. Each side may decline another target-square capture only when it has
+a legal move outside the exchange; checking branches that also require
+non-target evasions are unsupported. Terminal outcomes are also outside this
+material-only model.
+
+Exchange work is asynchronous and bounded by an injected monotonic deadline and
+at most 4,096 expanded positions, yielding after every 32 positions. Typed
+evidence distinguishes `completed`, `unsupported`, and `incomplete`, records a
+replayable optimal UCI line, perspective, node count, and reached limit, and
+uses pawn/knight/bishop/rook/queen values 1/3/3/5/9 including promotion gain.
+Unsupported and incomplete results have no material result. A negative completed
+result remains evidence; the evaluator has no candidate-selection call site and
+cannot discard an engine candidate.
+
 For M1, policy is fixed rather than user-configurable: one engine and thread,
 64 MiB hash, and five seconds per request. One second surveys up to five root
 candidates; remaining time is divided across focused root-move searches,

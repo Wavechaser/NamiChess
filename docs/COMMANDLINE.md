@@ -105,6 +105,16 @@ from its certified rank. Scores use White's perspective and state that positive
 favors White and negative favors Black. Survey and focused-probe evidence remain
 separate, including their scores and bounds.
 
+The analysis package also provides bounded target-square exchange evaluation for
+later local-search integration. It reports `completed`, `unsupported`, or
+`incomplete`; only a completed result has a material value. That value uses the
+requested White or Black perspective and 1/3/3/5/9 piece values, includes
+capture-promotion gain, and is accompanied by a legally replayable UCI line,
+node count, and limit metadata. The evaluator explores at most 4,096 positions
+under its caller's monotonic deadline and yields every 32 positions. It does not
+rank or remove candidates, and the current CLI does not yet render or serialize
+this evidence.
+
 Import orientation resolves in this order: command-level `--orientation`, the
 process-level option, then the saved default. `turn` resolves once from the
 newly loaded root; navigating a game does not turn the display again. The saved

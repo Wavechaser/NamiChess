@@ -1,0 +1,15 @@
+{
+  "basic_recapture": "4k3/8/2p5/3p4/4P3/8/8/4K3 w - - 0 1",
+  "negative_exchange": "4k3/8/2p5/3p4/4Q3/8/8/4K3 w - - 0 1",
+  "white_pin": "2k5/2n5/8/3p4/4P3/8/8/2R1K3 w - - 0 1",
+  "black_pin": "2r1k3/8/8/4p3/3P4/8/2N5/2K5 b - - 0 1",
+  "en_passant": "4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1",
+  "capture_promotion": "1r6/P6k/8/8/8/8/6P1/4K3 w - - 0 1",
+  "capture_promotion_black": "4k3/6p1/8/8/8/8/p6K/1R6 b - - 0 1",
+  "xray_orders": "3r3k/8/2p2n2/3q4/4P3/8/8/3R3K w - - 0 1",
+  "illegal_king_recapture": "8/8/4k3/3p4/2K2N2/8/P7/8 w - - 0 1",
+  "terminal_capture": "4k3/8/8/3p4/4K3/8/8/8 w - - 0 1",
+  "forced_noncheck_recapture": "k7/1r6/2N5/8/8/8/7P/1R5K w - - 0 1",
+  "cooperative_cancellation": "7k/8/1n3n2/2p1p3/3q4/1NP1PN2/1n3n2/K2R4 w - - 0 1",
+  "checking_capture": "4k3/3p4/8/1B6/8/8/8/4K3 w - - 0 1"
+}

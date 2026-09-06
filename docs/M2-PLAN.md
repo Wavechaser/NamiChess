@@ -50,7 +50,7 @@ Static relationships remain usable without an engine. Local search belongs to th
 | M2.01 | Explicit M2 contracts and shared serialization boundary | — | Serializer characterization and ordinary suite | complete |
 | M2.02 | Shared orientation defaults and local CLI flipping | M2.01 | Settings round trips and orientation invariance | complete |
 | M2.03 | Complete structural move continuity | M2.01 | Named mirrored relationship fixtures | complete |
-| M2.04 | Bounded, legality-aware local exchange evidence | M2.03 | Exchange fixtures and unsupported cases | pending |
+| M2.04 | Bounded, legality-aware local exchange evidence | M2.03 | Exchange fixtures and unsupported cases | complete |
 | M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | pending |
 | M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | pending |
 | M2.07 | Integrated CLI explanations and GUI-ready views | M2.02, M2.06 | Shared-consumer and interactive CLI tests | pending |
@@ -68,6 +68,8 @@ This register is the completion denominator. New findings are recorded separatel
 | M2.03 | Independent reviewer `review_contracts` | Missing exact special-move relationship tests, mirrors, and above-engine-limit fixture | Added named mirrored assertions and 48-piece fixture; reviewer became test builder and did not approve own changes |
 | M2.03 | Independent reviewer `orientation` | Independently checked identities, geometry, special moves and schema; 51 focused static/serialization/exchange tests passed | Accepted; no concrete algorithm defect found |
 | M2.01/M2.03 | Coordinator | Consecutive coverage gaps claimed old tests as evidence for new semantics | Verification-process weakness: require explicit claim-to-test mapping; no evidence justifying a runtime refactor |
+| M2.04 | Independent reviewer `orientation` | Legal minimax, forced non-check recapture, full-history scratch board, special moves, terminal/check unsupported and limits independently inspected; shared focused suite 51 passed | Accepted; standalone gate 16 passed; ordinary builder suite 190 passed, 10 skipped before concurrent edits |
+| M2.04 | Coordinator | No candidate-selection call site exists in this checkpoint, so SEE cannot gate candidates | Direct inspection closes standalone non-gating requirement; add integration regression with M2.05 call site |
 
 Append substantive findings here with their checkpoint, independent source, direct evidence, and disposition. Similar consecutive findings must explicitly record whether they reveal an upstream design defect.
 
@@ -371,7 +373,7 @@ M2.08 is a separate gate, not a substitute for checkpoint-owned regressions. It 
 
 ## Resumption block
 
-- **Current checkpoint:** M2.04/M2.05. M2.01 committed as `98268b5`; M2.02 committed as `c6241a1`; M2.03 accepted independently.
+- **Current checkpoint:** M2.05/M2.06. M2.01 committed as `98268b5`; M2.02 as `c6241a1`; M2.03 as `9bc2763`; M2.04 independently accepted.
 - **Completed evidence:** Baseline commit is `8b03c09`; pre-M2 baselines were 145 passed plus 10 skipped ordinarily and 155 passed with Stockfish in an isolated temporary directory. M2.01 focused serializer/CLI verification passed 21 tests after creating the missing workspace temp parent.
 - **Next action:** Complete orientation CLI integration and structural continuity verification; commit each independently with its tests, documentation, and fresh reviewer evidence.
 - **Established verification:** `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <fresh-temp-path>`; use `NAMICHESS_TEST_ENGINE` and the executable above for the final engine sweep.

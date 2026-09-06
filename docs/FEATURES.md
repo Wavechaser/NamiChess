@@ -1,8 +1,9 @@
 # NamiChess Features
 
-Status: M1 complete. Strict import, navigation, static inspection,
-bounded engine analysis, candidate comparison, text details, and shared JSON
-snapshots are implemented.
+Status: M1 complete; M2 implementation is underway. Strict import, navigation,
+static inspection, bounded engine analysis, candidate comparison, text details,
+shared JSON snapshots, shared orientation, structural continuity, and bounded
+local exchange evaluation are implemented.
 
 ## First milestone
 
@@ -15,8 +16,9 @@ policy. Current CLI behavior and defaults live in [COMMANDLINE.md](COMMANDLINE.m
 
 M1 includes narrow threat reporting for checks, immediate mates, captures, legal
 replies, and consequences in analyzed lines. Comprehensive threat assessment,
-practical-best ranking, active recall, training, GUI overlays, SEE, persistence,
-and export are deferred. Syzygy integration and redistribution are excluded.
+practical-best ranking, active recall, training, GUI overlays, analysis
+persistence, and export are deferred. Syzygy integration and redistribution are
+excluded.
 
 Static inspection reports the occupant of a square, every piece that attacks it
 geometrically, moves by the actual side to move that legally reach it, and
@@ -27,11 +29,11 @@ promotion, castling-rook, attack, slider-ray, pin, and check changes.
 The following sections describe the wider product roadmap; only behavior named
 above and in the M1 plan is implemented in the current milestone.
 
-## M2 direction — proposed scope
+## M2 direction — active scope
 
 M2 centers on continuity: explain how each legal move changes piece relationships
-and what those changes enable. This section records the proposed next milestone,
-not implemented behavior or a finalized implementation plan.
+and what those changes enable. The active implementation plan determines the
+checkpoint sequence; this section includes both completed and planned behavior.
 
 - Extend the shared before/after facts with newly attacked targets, gained and
   lost geometric defenders, cleared and blocked rays, changed blockers, and
@@ -39,8 +41,9 @@ not implemented behavior or a finalized implementation plan.
   castling, en passant, and promotion. Distinguish geometric defence from legal
   recapture and tactical availability.
 - Add latent slider rays and local exchange evaluation (SEE), with explicit
-  supported cases and bounded work. SEE supplies exchange evidence, not overall
-  move soundness or a reason to discard sacrifices.
+  supported cases and bounded work. These analysis internals are implemented.
+  SEE supplies exchange evidence, not overall move soundness or a reason to
+  discard sacrifices; application and CLI exposure remains a later checkpoint.
 - Examine checks, captures, promotions, and direct attacks in bounded legal
   continuations. Recompute relationships after each ply, including counterchecks
   and intermediate moves; selective forcing search is not a complete defence
@@ -67,6 +70,14 @@ contacts, geometrically undefended pieces, and latent slider rays through the ne
 occupied square. Move deltas report gained and lost forms of those facts across
 captures, castling, en passant, and every promotion type without treating a
 geometric relationship as proof that a piece is safe or tactically lost.
+
+M2 exchange evaluation now searches legal captures and recaptures on one target
+square, including x-rays, pins, king legality, en passant, and capture-promotions.
+It is capped at 4,096 expanded positions and an enclosing deadline, yields every
+32 positions, and distinguishes unsupported chess branches from incomplete
+coverage. Its replayable line and 1/3/3/5/9 material result are perspective
+explicit. Unsupported or incomplete work has no material result, and a negative
+result remains evidence rather than a candidate filter.
 
 ## Product aim
 

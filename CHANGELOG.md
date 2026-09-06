@@ -4,6 +4,15 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 bounded local exchange evaluation — 2026-09-06
+
+- Added asynchronous target-square capture/recapture minimax with legal stop
+  decisions, recomputed x-rays, special-move accounting, and replayable typed
+  material evidence.
+- Bounded exchange work by an injected deadline and 4,096 expanded positions,
+  with distinct unsupported and incomplete results that cannot filter engine
+  candidates.
+
 ### M2 structural continuity — 2026-09-06
 
 - Added identity-bearing attack and geometric-defence contacts, undefended-piece
