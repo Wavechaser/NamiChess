@@ -129,7 +129,10 @@ launch, GUI, packaging, and file-picker behavior stays in interface adapters.
   `docs/obsolete/`; active contracts remain in their owning documents above.
 - `docs/DEFENSE.md` owns the deliberately narrow trust and non-goal model.
 - `docs/BUGS.md` records confirmed substantive defects, not ideas or tasks.
-- `CHANGELOG.md` records completed task-level changes newest-first.
+- `CHANGELOG.md` groups completed changes under milestone sections, newest
+  milestone first, followed by Project Setup. Keep entries at a consistent
+  product-outcome level; consolidate checkpoint details and keep detailed
+  verification history in the accepted milestone plans.
 - Update the owning document with any behavior or architectural change.
 
 ## Git and Commits
