@@ -257,8 +257,9 @@ submission and legal comparison-move resolution, so a later GUI does not repeat
 request sequencing or stale-result policy. CLI cancellation settles before a
 later position request can be submitted.
 
-The CLI renders the shared application view as ASCII text or one
-`schema_version: 1` JSON snapshot. Squares use algebraic coordinates, moves carry
+The interface-neutral serialization adapter renders the shared application view
+as one `schema_version: 1` JSON snapshot; the CLI delegates to it rather than
+owning the wire shape. Squares use algebraic coordinates, moves carry
 UCI and SAN, and scores use tagged centipawn or mate values with explicit
 perspective. Progress belongs on stderr and command results on stdout. A later
 GUI consumes the same semantic references to draw arrows and highlights.

@@ -53,13 +53,14 @@ not implemented behavior or a finalized implementation plan.
 - Retain the source, target, preconditions, before/after relationships, evidence,
   and search coverage for each assessment. These are the basis for later broader
   threat analysis; comprehensive bilateral threat classification remains deferred.
-- Expose the same explanations in CLI and a thin interactive board, with linked
-  highlights, candidate previews, evidence replay, and revision-safe updates.
+- Expose the same explanations through CLI and interface-neutral snapshots with
+  stable references for future highlights, candidate previews, evidence replay,
+  and revision-safe updates. The interactive GUI itself remains deferred.
 
 Promotion already retains piece identity, updates piece type and geometric facts,
 and appears in move deltas and line material evidence. M2 should expand regression
-coverage for underpromotion and capture-promotion effects and provide a GUI choice
-among all four legal promotion types.
+coverage for underpromotion and capture-promotion effects. A future GUI will
+provide a choice among all four legal promotion types.
 
 ## Product aim
 
@@ -126,8 +127,10 @@ engine line.
 
 ## Board appearance
 
-- Planned for M2: choose White or Black at the bottom on import, optionally resolve
-  orientation from the imported position's side to move, and flip during analysis.
+- Planned for M2: persist one shared default of White, Black, or the imported
+  position's side to move at the bottom. CLI and future GUI imports without an
+  explicit override resolve this same setting, preventing adapter defaults from
+  drifting. Each interface may flip locally during analysis.
   Resolve automatic orientation once on import; navigation does not flip the board
   after every move. Orientation is presentation state and does not change canonical
   squares, score perspective, position revision, or analysis requests. A GUI renders

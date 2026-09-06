@@ -132,6 +132,9 @@ the current input. `quit` does not wait for a full search.
 ## JSON snapshot
 
 `json` emits one object with `schema_version: 1`, `session`, and `analysis`.
+The CLI delegates this shape to the shared interface serialization adapter so a
+future GUI consumer does not need to import CLI rendering code. This extraction
+does not change any schema-version-1 field or value encoding.
 The snapshot is assembled by the application and includes analysis only when its
 position revision matches the selected session revision. `analysis` is `null`
 when no current result exists.

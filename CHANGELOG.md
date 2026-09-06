@@ -4,6 +4,13 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 shared interface contract — 2026-09-06
+
+- Extracted schema-version-1 snapshot serialization from CLI rendering into an
+  interface-neutral adapter without changing its wire shape.
+- Recorded the active M2 checkpoint plan and clarified that M2 prepares shared
+  views for a later GUI while orientation defaults remain shared settings.
+
 ### M2 scope discussion — 2026-09-06
 
 - Recorded proposed continuity-first analysis, bounded local tactical assessments,
