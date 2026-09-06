@@ -4,6 +4,18 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 qualified local assessments — 2026-09-06
+
+- Added immutable move-safety and piece-trapping assessments with explicit
+  reply or legal-exit coverage, replay-verified immediate mate failures, and
+  truthful incomplete and no-refutation-found results.
+- Added model-qualified per-exit material exposure that accounts for root gains
+  while keeping negative exchange evidence separate from move soundness and
+  sacrifice compensation.
+- Added witnessed conflicting-duty evidence for narrow overload candidates,
+  requiring legal identity-bearing continuations while leaving universal
+  overload claims unsupported.
+
 ### M2 bounded local exploration and focused probes — 2026-09-06
 
 - Added cancelable depth-four local exploration for checks, captures,

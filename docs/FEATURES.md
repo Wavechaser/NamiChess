@@ -3,7 +3,8 @@
 Status: M1 complete; M2 implementation is underway. Strict import, navigation,
 static inspection, bounded engine analysis, candidate comparison, text details,
 shared JSON snapshots, shared orientation, structural continuity, bounded local
-exchange evaluation, and focused local move or piece probes are implemented.
+exchange evaluation, focused local move or piece probes, and qualified local
+assessments are implemented.
 
 ## First milestone
 
@@ -54,10 +55,13 @@ checkpoint sequence; this section includes both completed and planned behavior.
   probes inspect every legal exit of the actual side's selected piece within the
   local budget; they never flip the turn to inspect an opponent piece.
 - Build local safety, trapping, and overload assessments on those facts and
-  continuations. Distinguish a witnessed refutation from no refutation found.
-  Report escape coverage before claiming no viable escape, and never equate
-  restricted mobility with a forced material win. Multiple defensive contacts
-  only suggest overload; demonstrate conflicting duties through legal play.
+  continuations. This internal consumer is implemented. It distinguishes
+  immediate established mate failure, deeper witnessed failure, incomplete
+  work, and no refutation found. It reports legal-exit coverage without
+  equating restricted mobility with a forced material win. Multiple defensive
+  contacts only nominate overload; a reported conflict requires legal play
+  where answering one attacked-piece duty abandons another and remains a
+  witnessed conflict rather than a universal forced-overload claim.
 - Retain the source, target, preconditions, before/after relationships, evidence,
   and search coverage for each assessment. These are the basis for later broader
   threat analysis; comprehensive bilateral threat classification remains deferred.
@@ -90,6 +94,12 @@ after engine preparation, including at most one second of local work. Local and
 nested exchange search share deadline, node, cancellation, and every-32-node
 yield accounting. Focused probe commands and their CLI presentation remain part
 of the pending interface checkpoint.
+
+Local material exposure reports an immediate capture of the moved piece only
+when completed target-square exchange evidence remains negative after root
+capture and promotion gains. It stays separate from mate refutation and
+move-safety conclusions. Sacrifice compensation and broader position value
+require separate engine evidence and remain unmeasured by this material model.
 
 ## Product aim
 

@@ -133,6 +133,17 @@ while restricted engine verification remains capped at seven roots. CLI probe
 commands and local-evidence rendering are not yet available; they belong to the
 pending integrated-interface checkpoint.
 
+An internal interface-neutral assessment consumer is available for that
+checkpoint. Its immutable results identify position and subject, reference
+local line or exchange evidence, and declare coverage in opponent replies,
+legal exits, or root moves. Safety distinguishes immediate mate failure, deeper
+witnessed failure, incomplete work, and no refutation found. Trapping lists
+legal, refuted, unresolved, and locally material-exposed exits. Material
+exposure accounts for root capture and promotion gain but does not state that a
+move is unsound or a piece is won. Overload output is limited to witnessed
+conflicting duties. These values have no CLI text or JSON fields until the M2
+integrated-interface work adds shared rendering.
+
 Import orientation resolves in this order: command-level `--orientation`, the
 process-level option, then the saved default. `turn` resolves once from the
 newly loaded root; navigating a game does not turn the display again. The saved

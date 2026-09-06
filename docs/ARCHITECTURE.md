@@ -119,6 +119,32 @@ immediate-reply counts establish only that those replies were visited. A deeper
 line is a selective example and never proves a forced continuation. Terminal
 mate is recorded as witnessed mate rather than a general refutation.
 
+The analysis package consumes this evidence into immutable local assessments.
+Move safety distinguishes immediate replay-verified opponent mate, deeper
+witnessed mate, incomplete work, and complete immediate-reply coverage where no
+refutation was found. Trapping recomputes the actual-side piece's legal exits
+and reports mate-refuted, unresolved, and unrefuted exits. Zero legal exits is a
+separate result and never means the piece is won. Coverage names its unit as
+opponent replies, legal exits, or root moves and keeps total, examined,
+refuted, and unresolved counts consistent.
+
+Material exposure is separate from mate refutation. When an immediate reply
+captures the moved piece, the consumer combines root capture or promotion gain
+with completed target-square exchange evidence. A negative result is only a
+checked local material consequence; it does not establish unsoundness or
+trapping, reject a sacrifice, or measure positional or mating compensation.
+An overload candidate requires one actual-side defender of at least two
+attacked friendly pieces. A witnessed conflict must show that the defender
+captures one duty's attacker, loses geometric defence of a distinct duty, and
+allows the original second attacker to take that piece without a legal target-square
+recapture. It is not a universal overload proof.
+
+Assessment evidence is accepted only when its position, root, immediate reply,
+move-delta sequence, completed exchange line, termination, and coverage agree.
+An unresolved limit line cannot become affirmative mate evidence. The consumer
+is available internally; snapshot and CLI rendering belong to the pending
+integrated-interface checkpoint.
+
 `AnalysisResult` carries the immutable `ProbeSubject`, resolved `LocalLimits`,
 and optional `LocalExploration` beside engine candidates. The shared
 `analysis.continuations` helper constructs identity-preserving contexts for

@@ -1,6 +1,6 @@
 # M2 Implementation Plan — Continuity and Local Tactical Understanding
 
-Status: active. M2.01 through M2.05 are accepted; M2.06 review fixes and M2.07 integration are in progress.
+Status: active. M2.01 through M2.06 are accepted; M2.07 integration and final acceptance remain.
 
 ## Main objectives
 
@@ -52,7 +52,7 @@ Static relationships remain usable without an engine. Local search belongs to th
 | M2.03 | Complete structural move continuity | M2.01 | Named mirrored relationship fixtures | complete |
 | M2.04 | Bounded, legality-aware local exchange evidence | M2.03 | Exchange fixtures and unsupported cases | complete |
 | M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | complete |
-| M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | pending |
+| M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | complete |
 | M2.07 | Integrated CLI explanations and GUI-ready views | M2.02, M2.06 | Shared-consumer and interactive CLI tests | pending |
 | M2.08 | Accepted end-to-end M2 delivery | M2.07 | Integration and adversarial sweep | pending |
 
@@ -74,6 +74,9 @@ This register is the completion denominator. New findings are recorded separatel
 | M2.05 | Independent reviewer `review_search` | Piece-probe test counted engine roots without proving they were selected-piece exits | Exact move mapping now asserted; independent gate 84 passed, 2 skipped; no remaining blocker |
 | M2.05 | Coordinator | Shared continuation helper briefly introduced an analysis-to-application import cycle | Corrected ownership to analysis/continuations; no delayed-import workaround or additional framework |
 | M2.05 | Builder final engine gate | Full Stockfish-enabled suite: 259 passed in 32.48 seconds, no skips/failures | Accepted following independent 84-test focused review; stale submission fix is `8cc64c3` |
+| M2.06 | Independent reviewer `review_search` | Budget-unresolved lines could become refuted exits; wrong root/line/delta/exchange associations could misattribute claims | Fixed centrally with evidence eligibility and referential-integrity validation; no recomputation/security framework added |
+| M2.06 | Independent reviewer `review_search` | Fabricated reply counts and missing countercheck negative weakened verification | Added real producer counts/omissions, legal countercheck counterexample and mirrors; ordinary review 256 passed, 10 skipped; no standalone blockers |
+| M2.06 | Builder final gate | 60 focused assessment/local/exchange tests passed, including additional black countercheck and material-exposure cases | Accepted; application/CLI assembly remains M2.07 scope |
 
 Append substantive findings here with their checkpoint, independent source, direct evidence, and disposition. Similar consecutive findings must explicitly record whether they reveal an upstream design defect.
 
@@ -377,7 +380,7 @@ M2.08 is a separate gate, not a substitute for checkpoint-owned regressions. It 
 
 ## Resumption block
 
-- **Current checkpoint:** M2.06/M2.07. M2.01 `98268b5`, M2.02 `c6241a1`, M2.03 `9bc2763`, M2.04 `56e73a2`; shared stale-view fix `8cc64c3`; M2.05 independently accepted with full engine gate.
+- **Current checkpoint:** M2.07/M2.08. M2.01 `98268b5`, M2.02 `c6241a1`, M2.03 `9bc2763`, M2.04 `56e73a2`, M2.05 `7d01281`; shared stale-view fix `8cc64c3`; standalone M2.06 accepted.
 - **Completed evidence:** Baseline commit is `8b03c09`; pre-M2 baselines were 145 passed plus 10 skipped ordinarily and 155 passed with Stockfish in an isolated temporary directory. M2.01 focused serializer/CLI verification passed 21 tests after creating the missing workspace temp parent.
 - **Next action:** Complete orientation CLI integration and structural continuity verification; commit each independently with its tests, documentation, and fresh reviewer evidence.
 - **Established verification:** `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <fresh-temp-path>`; use `NAMICHESS_TEST_ENGINE` and the executable above for the final engine sweep.
