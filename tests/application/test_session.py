@@ -108,6 +108,21 @@ def test_analysis_view_filters_results_from_another_revision() -> None:
     assert session.analysis_view(controller).analysis is None  # type: ignore[arg-type]
 
 
+def test_shared_view_exposes_only_immediate_selected_line_navigation_refs() -> None:
+    session = Session()
+    session.load_pgn((FIXTURES / "multi_game.pgn").read_text(encoding="utf-8"))
+    root = session.start()
+    assert root.parent_position_id is None
+    expected_children = []
+    for number in range(1, len(root.variations) + 1):
+        session.start()
+        expected_children.append(session.variation(number).position.position_id)
+    assert root.child_position_ids == tuple(expected_children)
+    first = session.start()
+    child = session.next()
+    assert child.parent_position_id == first.position.position_id
+
+
 def test_request_analysis_rejects_stale_supplied_view_before_submission() -> None:
     session = Session()
     stale = session.load_fen("7k/8/8/8/8/8/8/R6K w - - 0 1")

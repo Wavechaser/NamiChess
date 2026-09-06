@@ -7,7 +7,7 @@ from enum import Enum
 
 from namichess.analysis.static import MoveDelta, PositionFacts
 from namichess.application.analysis import AnalysisResult
-from namichess.domain.models import PiecePlacement, PositionContext
+from namichess.domain.models import PiecePlacement, PositionContext, PositionId
 
 
 class PositionStatus(str, Enum):
@@ -44,4 +44,6 @@ class SessionView:
     can_claim_fifty_moves: bool
     can_claim_threefold_repetition: bool
     variations: tuple[str, ...]
+    parent_position_id: PositionId | None = None
+    child_position_ids: tuple[PositionId, ...] = ()
     analysis: AnalysisResult | None = None

@@ -90,8 +90,12 @@ decode output as UTF-8.
 | `variations` | List the current node's child moves as SAN. |
 | `variation <n>` | Select a one-based child variation. |
 | `move <SAN-or-UCI>` | Add or reuse an in-memory legal trial child and select it. The imported file is unchanged. |
-| `inspect <square>` | Show the occupant, geometric attackers from both colors, legal access for the actual side to move, and relevant absolute pins. |
+| `inspect <square>` | Show the occupant, geometric contacts and rays, legal access for the actual side to move, absolute pins, and available local assessments involving that piece. |
+| `changes` | Show complete identity-bearing relationship changes from the previous move. |
 | `analyze` | Restart bounded analysis of the selected position. This also retries engine startup after failure. |
+| `probe move <SAN-or-UCI>` | Resolve a legal move and start focused analysis without moving the cursor. |
+| `probe piece <square>` | Resolve the side-to-move piece and analyze its legal exits without moving the cursor. |
+| `line <candidate-number> <ply>` | Display candidate ply zero or a later ply as a read-only board in the current orientation. |
 | `compare <move> <move>` | Analyze two distinct legal SAN or UCI moves without changing the selected node. |
 | `details <candidate-number>` | Show the selected result's evidence, survey/probe scores, numbered SAN continuations, coordinates, captures, recaptures, promotions, material changes, and checks. |
 | `json` | Emit one complete versioned snapshot of the shared session and current-revision analysis. |
@@ -129,20 +133,21 @@ Per-root local coverage distinguishes visited immediate replies from omitted
 replies and records why each replayable branch stopped. A complete reply count
 does not turn a selective deeper line into exhaustive defence or a forced
 claim. Focused piece probes cover every legal exit locally within the budget,
-while restricted engine verification remains capped at seven roots. CLI probe
-commands and local-evidence rendering are not yet available; they belong to the
-pending integrated-interface checkpoint.
+while restricted engine verification remains capped at seven roots. `probe move`
+and `probe piece` expose the same requests through the CLI; they leave the
+selected game position unchanged.
 
-An internal interface-neutral assessment consumer is available for that
-checkpoint. Its immutable results identify position and subject, reference
+The interface-neutral assessment consumer produces immutable results that
+identify position and subject, reference
 local line or exchange evidence, and declare coverage in opponent replies,
 legal exits, or root moves. Safety distinguishes immediate mate failure, deeper
 witnessed failure, incomplete work, and no refutation found. Trapping lists
 legal, refuted, unresolved, and locally material-exposed exits. Material
 exposure accounts for root capture and promotion gain but does not state that a
 move is unsound or a piece is won. Overload output is limited to witnessed
-conflicting duties. These values have no CLI text or JSON fields until the M2
-integrated-interface work adds shared rendering.
+conflicting duties. The analysis snapshot exposes `move_safety`, `trapping`, and
+`overload`; concise output, `inspect`, and candidate `details` render their
+qualified conclusions and coverage.
 
 Import orientation resolves in this order: command-level `--orientation`, the
 process-level option, then the saved default. `turn` resolves once from the
@@ -172,8 +177,8 @@ engine analysis reports unsupported and does not launch Stockfish for them.
 ## Text results and recovery
 
 A completed result shows its state and coverage, at most three priority facts,
-and a candidate table. Priority favors current check, direct mate, and a
-candidate allowing an opponent mate before ordinary line facts. Candidate facts
+and a candidate table. Priority favors current check, direct or engine-reported
+mate, and focused assessment results before ordinary line facts. Candidate facts
 are prefixed with the candidate's root SAN so facts from different continuations
 cannot be confused. Each table row contains one concise priority explanation;
 `details` contains the complete evidence.
@@ -191,7 +196,8 @@ the current input. `quit` does not wait for a full search.
 `json` emits one object with `schema_version: 2`, `session`, and `analysis`.
 The CLI delegates this shape to the shared interface serialization adapter so a
 future GUI consumer does not need to import CLI rendering code. Schema version 2
-preserves every version-1 field and encoding while adding structural facts.
+preserves every version-1 field and encoding while adding structural facts,
+local evidence and assessments, and immediate navigation references.
 The snapshot is assembled by the application and includes analysis only when its
 position revision matches the selected session revision. `analysis` is `null`
 when no current result exists.
@@ -205,13 +211,19 @@ latest completed result as text.
 The session object contains position context, board rows, piece placements,
 geometric attacks, identity-bearing attack/defence contacts, geometrically
 undefended pieces, latent slider rays, actual-side legal moves, absolute pins,
-check facts, and an optional previous-move delta. Move deltas contain added and
-removed forms of those structural facts. Moves carry UCI and SAN. Piece, square, position,
+check facts, an optional previous-move delta, `parent_position_id`, and
+`child_position_ids` for immediate variations. It does not serialize the whole
+game tree. Move deltas contain before/after piece placements and added and
+removed structural facts. Moves carry UCI and SAN. Piece, square, position,
 candidate, explanation, evidence, request, and revision identities remain
 structured; a consumer does not parse prose to draw arrows or highlights.
 
 The analysis object contains state, engine identity, coverage, candidates,
-explanations, and evidence. Scores are tagged with centipawn/mate and bound data;
+explanations, evidence, the focused subject when present, local exploration,
+resolved limits, typed local assessments, and `assessment_pieces` containing
+current placements for the assessed trapping/overload subjects. These placements
+let standalone result rendering name the piece without replaying chess rules.
+Scores are tagged with centipawn/mate and bound data;
 JSON preserves `null` separately from numeric zero. Evidence includes UCI and SAN
 lines, legal alternative branches, source/target/capture squares, and engine
 depth, nodes, and elapsed seconds when present. `json` is a point-in-time view, not a separate network
@@ -249,8 +261,19 @@ submits the selected immutable `PositionContext` and returns the shared
 `SessionView`; `Session.analysis_view(controller)` attaches only a
 matching-revision `AnalysisResult`. `Session.resolve_moves()`
 validates SAN/UCI comparison moves without moving the cursor.
+`Session.resolve_probe()` resolves a CLI-style move or square to a typed subject;
+`Session.request_probe()` applies the same revision-safe submission boundary.
 Supplied submission views must match the selected revision and position context;
 stale views are rejected before comparison resolution or controller mutation.
+
+`preview_candidate_line(view, candidate_number, ply)` reconstructs an immutable
+candidate preview from the current result. Ply zero is the selected source
+position; later plies carry request-scoped continuation positions and exact
+history, facts, placements, and move changes. It validates the candidate/PV root
+and revision and never changes the session cursor, adds a variation, or starts
+analysis. Preview and session coordinates stay canonical; each interface renders
+the board using its own orientation. Immediate preview parent/child references
+describe that candidate line rather than eagerly expanding the game tree.
 
 `AnalysisController.submit()` is nonblocking. It retains the latest request and
 at most one pending replacement. `wait()`, `cancel()`, and `close()` are awaited;

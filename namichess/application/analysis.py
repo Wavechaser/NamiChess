@@ -10,12 +10,20 @@ from typing import Callable, Protocol
 
 import chess
 
+from namichess.analysis.assessments import (
+    MoveSafetyAssessment,
+    OverloadAssessment,
+    TrappingAssessment,
+    assess_move_safety,
+    assess_overload,
+    assess_trapping,
+)
 from namichess.analysis.engine import EngineCandidate, EnginePolicy, EngineProgress, EngineReport, EngineScore, EngineStatus, MAX_ENGINE_PIECES, ScoreBound
 from namichess.analysis.evidence import Evidence, Explanation, line_consequences
 from namichess.analysis.local import LocalExploration, LocalLimits, explore_local
 from namichess.analysis.static import move_delta, position_facts
 from namichess.analysis.continuations import continuation_context
-from namichess.domain.models import PieceId, PositionContext, PositionId, SquareRef
+from namichess.domain.models import PieceId, PiecePlacement, PositionContext, PositionId, SquareRef
 from namichess.domain.position import replay_position
 
 
@@ -98,6 +106,10 @@ class AnalysisResult:
     subject: ProbeSubject | None = None
     local: LocalExploration | None = None
     local_limits: LocalLimits = LocalLimits()
+    move_safety: tuple[MoveSafetyAssessment, ...] = ()
+    trapping: tuple[TrappingAssessment, ...] = ()
+    overload: tuple[OverloadAssessment, ...] = ()
+    assessment_pieces: tuple[PiecePlacement, ...] = ()
 
 
 class AnalysisEngine(Protocol):
@@ -207,7 +219,7 @@ class AnalysisController:
         if board.is_game_over():
             explanations, evidence = _current_tactics(board, context, request_id, revision)
             local = await self._local(request_id, context, subject, limits, self._clock() + limits.seconds)
-            return AnalysisResult(**base, state=AnalysisState.COMPLETED, explanations=explanations, evidence=evidence, local=local, message="terminal position; no engine search")
+            return AnalysisResult(**base, state=AnalysisState.COMPLETED, explanations=explanations, evidence=evidence, local=local, **_assessments(context, local, subject), message="terminal position; no engine search")
         legal = {move.uci() for move in board.legal_moves}
         compared = tuple(dict.fromkeys(compare))
         if len(compared) > self._policy.comparison_limit or any(move not in legal for move in compared):
@@ -218,7 +230,7 @@ class AnalysisController:
                 if local is None:
                     local = await self._local(request_id, context, subject, limits, self._clock() + limits.seconds)
                 static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
-                return AnalysisResult(**base, state=AnalysisState.UNSUPPORTED, explanations=static_explanations, evidence=static_evidence, local=local, message=f"engine analysis supports at most {MAX_ENGINE_PIECES} occupied squares")
+                return AnalysisResult(**base, state=AnalysisState.UNSUPPORTED, explanations=static_explanations, evidence=static_evidence, local=local, **_assessments(context, local, subject), message=f"engine analysis supports at most {MAX_ENGINE_PIECES} occupied squares")
             engine_name = await self._prepare(request_id)
             if engine_name is _SUPERSEDED:
                 return AnalysisResult(**base, state=AnalysisState.CANCELED)
@@ -230,7 +242,7 @@ class AnalysisController:
             survey_time = min(self._policy.survey_seconds, max(0.0, deadline - self._clock()))
             survey = await self._search(request_id, context, EnginePolicy(survey_time, self._policy.candidate_limit), deadline) if survey_time > 0 else None
             if survey is None:
-                return AnalysisResult(**base, state=AnalysisState.COMPLETED, coverage=Coverage(0, 0, 0, True, len(legal)), engine_name=engine_name, local=local)
+                return AnalysisResult(**base, state=AnalysisState.COMPLETED, coverage=Coverage(0, 0, 0, True, len(legal)), engine_name=engine_name, local=local, **_assessments(context, local, subject))
             if survey.status not in (EngineStatus.COMPLETED,):
                 return AnalysisResult(**base, state=_state(survey.status), message=survey.message, engine_name=engine_name, local=local)
             roots = {candidate.pv[0] for candidate in survey.candidates if candidate.pv}
@@ -260,7 +272,7 @@ class AnalysisController:
                     if request_id == self._request:
                         partial = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
                         static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
-                        self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name, local=local)
+                        self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name, local=local, **_assessments(context, local, subject))
             if subject is None:
                 local = await explore_local(
                     context, limits=limits, deadline=self._clock() + limits.seconds,
@@ -270,7 +282,7 @@ class AnalysisController:
                 )
             candidates, explanations, evidence = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
             static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
-            return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name, local=local)
+            return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name, local=local, **_assessments(context, local, subject))
         except asyncio.CancelledError:
             if self.latest is not None and self.latest.request_id == request_id:
                 return replace(self.latest, state=AnalysisState.CANCELED)
@@ -324,6 +336,32 @@ class AnalysisController:
     def _set_progress(self, request_id: int, progress: EngineProgress) -> None:
         if request_id == self._request:
             self.progress = progress
+
+
+def _assessments(
+    context: PositionContext, local: LocalExploration | None, subject: ProbeSubject | None,
+) -> dict[str, tuple[object, ...]]:
+    if local is None:
+        return {}
+    trapping = (
+        (assess_trapping(context, local, subject.piece),)
+        if subject is not None and subject.piece is not None
+        else ()
+    )
+    overload = assess_overload(context, local)
+    subjects = {
+        *(item.piece for item in trapping),
+        *(item.defender for item in overload),
+    }
+    _, placements = replay_position(context)
+    return {
+        "move_safety": assess_move_safety(context, local),
+        "trapping": trapping,
+        "overload": overload,
+        "assessment_pieces": tuple(
+            item for item in placements if item.piece_id in subjects
+        ),
+    }
 
 
 _SUPERSEDED = object()

@@ -176,6 +176,26 @@ class Session:
         controller.submit_probe(current.position, current.revision, subject)
         return self.analysis_view(controller, view=current)
 
+    def resolve_probe(self, kind: str, value: str) -> ProbeSubject:
+        """Resolve a probe subject at the selected position without moving it."""
+        if kind == "move":
+            return ProbeSubject.for_move(self.resolve_moves((value,))[0])
+        if kind == "piece":
+            square_name = value.lower()
+            try:
+                square = chess.parse_square(square_name)
+            except ValueError as exc:
+                raise SessionError("probe piece requires a square from a1 to h8") from exc
+            board = self._require_node().board()
+            piece = board.piece_at(square)
+            if piece is None:
+                raise SessionError("probe piece requires an occupied square")
+            if piece.color != board.turn:
+                raise SessionError("probe piece must belong to the side to move")
+            placement = next(item for item in self.view().pieces if item.square == square_name)
+            return ProbeSubject.for_piece(placement.piece_id)
+        raise SessionError("probe requires 'move <SAN-or-UCI>' or 'piece <square>'")
+
     def analysis_view(
         self,
         controller: AnalysisController,
@@ -232,6 +252,8 @@ class Session:
             can_claim_fifty_moves=board.can_claim_fifty_moves(),
             can_claim_threefold_repetition=board.can_claim_threefold_repetition(),
             variations=variations,
+            parent_position_id=self._context(node.parent).position_id if node.parent is not None else None,
+            child_position_ids=tuple(self._context(child).position_id for child in node.variations),
         )
 
     def _context(self, node: chess.pgn.GameNode) -> PositionContext:

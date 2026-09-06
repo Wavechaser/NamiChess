@@ -1,6 +1,6 @@
 # M2 Implementation Plan — Continuity and Local Tactical Understanding
 
-Status: active. M2.01 through M2.06 are accepted; M2.07 integration and final acceptance remain.
+Status: active. M2.01 through M2.07 are accepted; final acceptance and archival remain.
 
 ## Main objectives
 
@@ -53,7 +53,7 @@ Static relationships remain usable without an engine. Local search belongs to th
 | M2.04 | Bounded, legality-aware local exchange evidence | M2.03 | Exchange fixtures and unsupported cases | complete |
 | M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | complete |
 | M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | complete |
-| M2.07 | Integrated CLI explanations and GUI-ready views | M2.02, M2.06 | Shared-consumer and interactive CLI tests | pending |
+| M2.07 | Integrated CLI explanations and GUI-ready views | M2.02, M2.06 | Shared-consumer and interactive CLI tests | complete |
 | M2.08 | Accepted end-to-end M2 delivery | M2.07 | Integration and adversarial sweep | pending |
 
 This register is the completion denominator. New findings are recorded separately and do not silently add requirements.
@@ -86,6 +86,7 @@ This register is the completion denominator. New findings are recorded separatel
 | M2.08 | Coordinator interactive smoke and independent reviewer `review_interfaces` | Capture-underpromotion `b7a8b` immediately draws by insufficient material, but local exploration reported five post-game replies | Confirmed M2-001; centralized terminal source/root handling and automatic-draw regressions required in a separate analysis fix commit |
 | M2.07/M2.08 | Independent reviewer `review_interfaces` | Rebuilt non-CLI consumer resolves real produced piece/square/position, explanation/evidence, all three assessment evidence kinds and material exposure; final interface/terminal review: 95 passed | Presentation and reference findings closed; terminal-source trapping is unsupported rather than an immobility claim |
 | M2.08 | Coordinator final Stockfish gate | Full engine-enabled suite with fresh GUID `%TEMP%` base: 292 passed in 35.87 seconds, no skips/failures | Terminal-boundary and integrated interface implementation green; final interactive confirmation and archive cleanup remain |
+| M2.07/M2.08 | Independent reviewer `review_interfaces` | Final subject/catalog/terminal semantics recheck: 81 passed; terminal-source trapping is unsupported, genuine nonterminal no-exit cases remain distinct | Accepted; terminal boundary committed separately as `65fa136` |
 
 Append substantive findings here with their checkpoint, independent source, direct evidence, and disposition. Similar consecutive findings must explicitly record whether they reveal an upstream design defect.
 
@@ -389,9 +390,9 @@ M2.08 is a separate gate, not a substitute for checkpoint-owned regressions. It 
 
 ## Resumption block
 
-- **Current checkpoint:** M2.07/M2.08. M2.01 `98268b5`, M2.02 `c6241a1`, M2.03 `9bc2763`, M2.04 `56e73a2`, M2.05 `7d01281`, M2.06 `31b78ed`; shared stale-view fix `8cc64c3`.
+- **Current checkpoint:** M2.08. M2.01 `98268b5`, M2.02 `c6241a1`, M2.03 `9bc2763`, M2.04 `56e73a2`, M2.05 `7d01281`, M2.06 `31b78ed`; shared stale-view fix `8cc64c3`; terminal-boundary fix `65fa136`; M2.07 accepted.
 - **Completed evidence:** Baseline commit is `8b03c09`; pre-M2 baselines were 145 passed plus 10 skipped ordinarily and 155 passed with Stockfish in an isolated temporary directory. M2.01 focused serializer/CLI verification passed 21 tests after creating the missing workspace temp parent.
-- **Next action:** Finish M2.07 CLI rendering and shared-consumer coverage; obtain independent interface and whole-milestone review, run ordinary/Stockfish suites and interactive Windows smoke, then commit integration and final acceptance separately.
+- **Next action:** Record the final ordinary and interactive terminal observations, reconcile public completion status, archive the accepted plan, and commit M2.08 integration tests and acceptance documentation.
 - **Established verification:** `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <fresh-temp-path>`; use `NAMICHESS_TEST_ENGINE` and the executable above for the final engine sweep.
 - **Blockers/unresolved decisions:** None currently. A shared Windows pytest temp permission failure is handled with a fresh directory.
 - **Preserve:** Imported files, `.tools`, virtual environments, local settings, unrelated worktree changes, and all source content outside the named checkpoint paths.

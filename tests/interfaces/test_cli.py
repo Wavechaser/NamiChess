@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 
+import chess
 import pytest
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
@@ -15,6 +16,10 @@ from namichess.application.session import Session, SessionError
 from namichess.application.imports import ImportError as ChessImportError
 from namichess.analysis.engine import EngineCandidate, EngineProgress, EngineReport, EngineScore, EngineStatus, ScoreBound
 from namichess.analysis.evidence import Evidence, Explanation, LineConsequence
+from namichess.analysis.assessments import (
+    AssessmentConclusion, AssessmentCoverage, CoverageUnit, EvidenceKind,
+    EvidenceRef, MaterialExposure, TrappingAssessment,
+)
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult, Coverage
 from namichess.domain.models import PieceId, SquareRef
 from namichess.interfaces.explanations import ExplanationCatalog
@@ -163,11 +168,113 @@ def test_cli_inspect_rejects_invalid_square() -> None:
         execute(session, "inspect z9")
 
 
+def test_cli_changes_and_line_dispatch_do_not_move_the_session() -> None:
+    session = Session()
+    view = session.load_fen("4k3/P7/8/8/8/8/8/4K3 w - - 0 1")
+    candidate = CandidateResult(
+        "request:7:revision:1:position:test:candidate:a7a8q", view.position.position_id,
+        "a7a8q", "a8=Q", "white", 1, None, ("a7a8q",), False, (), (),
+    )
+    shared = dataclasses.replace(view, analysis=AnalysisResult(7, view.revision, AnalysisState.COMPLETED, (candidate,)))
+    controller = type("Controller", (), {"latest": shared.analysis})()
+
+    changes, _ = execute(session, "changes", controller=controller)
+    line, _ = execute(session, "line 1 1", controller=controller)
+
+    assert changes == "No move leads into this position."
+    assert "Candidate line: a8=Q (a7a8q), ply 1" in line
+    assert "promoted to queen" in line
+    assert session.view().position == view.position
+    assert session.view().revision == view.revision
+
+
+def test_changes_names_removed_defenders_and_opened_relationships_after_e4() -> None:
+    session = Session()
+    session.load_fen(chess.STARTING_FEN)
+    execute(session, "move e4")
+    output, _ = execute(session, "changes")
+    assert "Contact removed: d1 white queen defends e2 white pawn" in output
+    assert "Geometrically undefended after the move: e4 white pawn" in output
+    assert "Latent slider ray removed: f1 white bishop nw, blocked by e2 white pawn" in output
+
+
+def test_changes_names_an_added_absolute_pin() -> None:
+    session = Session()
+    session.load_fen("4r1k1/8/8/8/8/2N5/8/4K3 w - - 0 1")
+    execute(session, "move Ne2")
+    output, _ = execute(session, "changes")
+    assert "Absolute pin added: e2 white knight to e1 white king" in output
+
+
+def test_capture_promotion_distinguishes_a_removed_piece_from_new_defence() -> None:
+    session = Session()
+    session.load_fen("r3k3/1P6/8/8/8/8/8/4K3 w - - 0 1")
+    execute(session, "move bxa8=Q+")
+    output, _ = execute(session, "changes")
+    assert "Geometrically undefended before the move: a8 black rook" in output
+
+
+def test_cli_line_supports_ply_zero_and_renders_the_local_orientation() -> None:
+    session = Session()
+    view = session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")
+    candidate = CandidateResult(
+        "candidate:a1a2", view.position.position_id, "a1a2", "Ka2", "white", 1,
+        None, ("a1a2",), False, (), (),
+    )
+    controller = type("Controller", (), {
+        "latest": AnalysisResult(7, view.revision, AnalysisState.COMPLETED, (candidate,)),
+    })()
+    output, _ = execute(
+        session, "line 1 0", controller=controller,
+        display_state=BoardDisplayState(ResolvedOrientation.BLACK),
+    )
+    assert output.startswith("1 . . . . . . . K")
+    assert "At the candidate-line root." in output
+    assert "Source position:" not in output
+
+
+def test_cli_probe_commands_resolve_san_and_piece_identity_without_moving_session() -> None:
+    async def exercise() -> None:
+        session = Session()
+        before = session.load_fen("7k/8/8/8/8/8/8/R6K w - - 0 1")
+        controller = AnalysisController(ImmediateEngine())
+        await execute_async(session, "probe move Ra2", controller=controller, catalog=CATALOG)
+        move_result = await controller.wait()
+        assert move_result is not None and move_result.subject is not None
+        assert move_result.subject.move == "a1a2"
+        assert move_result.move_safety and move_result.move_safety[0].root_uci == "a1a2"
+        await execute_async(session, "probe piece a1", controller=controller, catalog=CATALOG)
+        piece_result = await controller.wait()
+        assert piece_result is not None and piece_result.subject is not None
+        assert piece_result.subject.piece == before.pieces[0].piece_id
+        assert piece_result.trapping and piece_result.trapping[0].piece == before.pieces[0].piece_id
+        concise = render_analysis(piece_result, CATALOG)
+        assert "Fact: a1 white rook: Local exit assessment:" in concise
+        assert "unrefuted_exit_found" not in concise
+        assert concise.count("Fact:") <= 3
+        inspected, _ = await execute_async(
+            session, "inspect a1", controller=controller, catalog=CATALOG,
+        )
+        assert "Local exit assessment:" in inspected
+        assert session.view().position == before.position
+        assert session.view().revision == before.revision
+        await controller.close()
+    asyncio.run(exercise())
+
+
 def test_cli_load_accepts_a_quoted_windows_path_with_spaces(tmp_path) -> None:
     source = tmp_path / "sample game.pgn"
     source.write_text("1. e4 *\n", encoding="utf-8")
     output, _ = execute(Session(), f'load "{source}"')
     assert "Turn: black" in output
+
+
+def test_cli_load_treats_orientation_prefixed_filename_as_a_path(tmp_path, monkeypatch) -> None:
+    source = tmp_path / "--orientation-notes.fen"
+    source.write_text("7k/8/8/8/8/8/8/K7 w - - 0 1\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    output, _ = execute(Session(), 'load "--orientation-notes.fen"')
+    assert "Turn: white" in output
 
 
 def test_interactive_prompt_path_accepts_commands() -> None:
@@ -224,6 +331,18 @@ def test_text_and_json_share_current_analysis_candidate() -> None:
     assert payload["analysis"]["candidates"][0]["score"]["centipawns"] == 0
     assert payload["analysis"]["candidates"][0]["score"]["mate"] is None
     assert payload["session"]["facts"]["legal_moves"][0]["san"]
+
+
+def test_concise_analysis_prioritizes_engine_mate_within_three_facts() -> None:
+    explanations = tuple(
+        Explanation(f"ordinary-{index}", "line.check", (("san", f"K{index}"),))
+        for index in range(4)
+    ) + (Explanation("zzz-mate", "engine.reported_mate", (("winner", "White"), ("moves", 2))),)
+    output = render_analysis(
+        AnalysisResult(1, 1, AnalysisState.COMPLETED, explanations=explanations), CATALOG,
+    )
+    assert output.count("Fact:") == 3
+    assert "Stockfish reports that White mates in 2 moves" in output
 
 
 def test_redirected_input_waits_for_latest_analysis_and_closes() -> None:
@@ -305,6 +424,30 @@ def test_details_render_recapture_promotion_and_material_change() -> None:
     assert "Probe score: +1.00" in output
     assert "Continuation: 1. a8=Q+" in output
     assert "elapsed=0.25s" in output
+
+
+def test_details_explains_material_exposure_model_without_raw_schema_token() -> None:
+    view = Session().load_fen("7k/8/8/3p4/8/8/4P3/4K3 w - - 0 1")
+    pawn = next(piece for piece in view.pieces if piece.square == "e2")
+    candidate = CandidateResult(
+        "candidate:e2e4", view.position.position_id, "e2e4", "e4", "white", 1,
+        None, ("e2e4",), False, (), (),
+    )
+    reference = EvidenceRef(EvidenceKind.REPLY_EXCHANGE, "e2e4", 0)
+    exposure = MaterialExposure("e2e4", "d5e4", -1, reference)
+    trapping = TrappingAssessment(
+        view.position.position_id, pawn.piece_id, AssessmentConclusion.INCOMPLETE,
+        ("e2e4",), (), ("e2e4",), (),
+        AssessmentCoverage(CoverageUnit.LEGAL_EXITS, 1, 0, 0, 1),
+        ("e2e4",), (exposure,),
+    )
+    result = AnalysisResult(
+        1, view.revision, AnalysisState.COMPLETED, (candidate,),
+        trapping=(trapping,), assessment_pieces=(pawn,),
+    )
+    output = render_details(result, 1, CATALOG)
+    assert "root gains plus target-square exchanges" in output
+    assert "root_gain_plus_target_square_material" not in output
 
 
 def test_current_facts_include_mate_moves_checker_coordinates_and_failure_recovery() -> None:

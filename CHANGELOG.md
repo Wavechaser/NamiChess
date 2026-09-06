@@ -4,6 +4,16 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 shared explanations and focused CLI — 2026-09-06
+
+- Added `changes`, focused move and piece probes, detailed evidence, and
+  orientation-aware read-only candidate-line boards including ply zero.
+- Added immediate navigation references and typed local assessments to shared
+  schema-version-2 snapshots for CLI and non-CLI consumers.
+- Replaced count-only move summaries with capped priority facts and complete
+  identity-bearing relationship detail on demand; shared catalog prose names
+  each assessment subject and preserves the limits of its evidence.
+
 ### Terminal local-analysis boundary — 2026-09-06
 
 - Stop local exploration at automatic terminal positions before enumerating

@@ -114,6 +114,8 @@ class MoveDelta:
     pins_added: tuple[AbsolutePin, ...]
     pins_removed: tuple[AbsolutePin, ...]
     gives_check: bool
+    before_pieces: tuple[PiecePlacement, ...]
+    after_pieces: tuple[PiecePlacement, ...]
 
 
 _SLIDERS = {"bishop", "rook", "queen"}
@@ -242,6 +244,8 @@ def move_delta(before_context: PositionContext, after_context: PositionContext) 
         pins_added=_pin_difference(after.pins, before.pins),
         pins_removed=_pin_difference(before.pins, after.pins),
         gives_check=after.checked_king is not None,
+        before_pieces=before.pieces,
+        after_pieces=after.pieces,
     )
 
 

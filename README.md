@@ -18,11 +18,15 @@ behavior is in [docs/COMMANDLINE.md](docs/COMMANDLINE.md).
 - Stockfish 18 installed as an ignored machine-local tool.
 - Product, architecture, feature, defense, and defect documents established.
 - MPChess SVG pieces bundled for the future board interface.
-- M1 can strictly load and navigate PGN/FEN positions, including composed
+- The CLI can strictly load and navigate PGN/FEN positions, including composed
   standard-chess positions with unusual material. Shared views expose geometric
   attacks, actual-side legal moves, absolute pins, and the previous move delta;
   `inspect <square>` renders those facts. Bounded Stockfish analysis, comparison,
   evidence details, and versioned JSON snapshots are available for review.
+- M2 adds identity-bearing relationship changes, bounded local exchange and
+  forcing evidence, qualified safety/trapping/overload assessments, focused
+  probes, read-only candidate previews, and shared orientation defaults. The
+  interactive GUI remains future work.
 
 ## Requirements
 
@@ -71,7 +75,8 @@ Use `load <path>` for a UTF-8 `.pgn` or `.fen` file, or enter a complete
 six-field position with `fen <FEN>`. `games`, `game <n>`, `start`, `end`,
 `next`, `back`, `goto <ply>`, `variations`, `variation <n>`, and
 `move <SAN-or-UCI>` navigate without changing the imported file. `inspect`,
-`analyze`, `compare`, `details`, and `json` expose the shared analysis workflow.
+`changes`, `analyze`, `compare`, `probe move`, `probe piece`, `details`, `line`,
+and `json` expose the shared analysis workflow and read-only evidence previews.
 Run `help`
 inside the session for the compact command list.
 
@@ -81,9 +86,10 @@ remote services at runtime.
 
 ## Persistence
 
-SQLite is deliberately deferred. M1 imports and parses PGN games and FEN
-positions; save and export remain planned beyond M1. Future app-owned settings,
-metadata, and derived analysis will use separate versioned UTF-8 JSON. Imported
+SQLite is deliberately deferred. The CLI imports and parses PGN games and FEN
+positions; game save and export remain future work. The shared orientation
+default uses versioned UTF-8 JSON at `%LOCALAPPDATA%\NamiChess\settings.json`.
+Future metadata and derived analysis will be stored separately. Imported
 files are read-only inputs, and future exports will use distinct user-confirmed
 paths.
 

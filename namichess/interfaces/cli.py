@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from pathlib import Path
 from typing import TextIO
 
 import chess
@@ -22,6 +23,7 @@ from namichess.application.analysis import AnalysisController, AnalysisResult, A
 from namichess.analysis.evidence import Explanation
 from namichess.analysis.static import MoveDelta
 from namichess.application.session import Session, SessionError
+from namichess.application.preview import CandidateLinePreview, PreviewError, preview_candidate_line
 from namichess.application.views import SessionView
 from namichess.interfaces.explanations import ExplanationCatalog
 from namichess.domain.models import PiecePlacement
@@ -81,14 +83,24 @@ def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
     lines = _analysis_summary(result)
     explanations = {item.explanation_id: item for item in result.explanations}
     evidence = {item.evidence_id: item for item in result.evidence}
-    prioritized = sorted(result.explanations, key=_explanation_priority)[:3]
-    for explanation in prioritized:
+    critical: list[str] = []
+    ordinary: list[str] = []
+    for explanation in sorted(result.explanations, key=_explanation_priority):
         candidate = next(
             (item for item in result.candidates if explanation.explanation_id in item.explanation_refs),
             None,
         )
         prefix = f"[{candidate.san}] " if candidate is not None else ""
-        lines.append(f"Fact: {prefix}{_render_fact(explanation, catalog, evidence)}")
+        rendered = f"Fact: {prefix}{_render_fact(explanation, catalog, evidence)}"
+        (critical if _explanation_priority(explanation)[0] < 3 else ordinary).append(rendered)
+    assessments: list[str] = []
+    for assessment in result.trapping:
+        assessments.append("Fact: " + _render_assessment("assessment.trapping", assessment, catalog, result))
+    for assessment in result.move_safety:
+        assessments.append("Fact: " + _render_assessment("assessment.move_safety", assessment, catalog, result))
+    for assessment in result.overload:
+        assessments.append("Fact: " + _render_assessment("assessment.overload", assessment, catalog, result))
+    lines.extend((*critical, *assessments, *ordinary)[:3])
     if result.candidates:
         lines.append("#  Rank  Move  Score  Summary")
     for number, candidate in enumerate(result.candidates, 1):
@@ -148,20 +160,62 @@ def render_details(result: AnalysisResult, number: int, catalog: ExplanationCata
             if consequence.gives_check:
                 detail += " and gives check"
             lines.append(f"{consequence.ply}. {detail}")
+    for assessment in result.move_safety:
+        if assessment.root_uci == candidate.uci:
+            lines.append(_render_assessment("assessment.move_safety", assessment, catalog, result))
+    for assessment in result.trapping:
+        lines.append(_render_assessment("assessment.trapping", assessment, catalog, result))
+        for exposure in assessment.material_exposures:
+            model = catalog.render(Explanation("", f"assessment.material_model.{exposure.model}"))
+            lines.append(catalog.render(Explanation(
+                "", "assessment.material_exposure",
+                (("exit", exposure.exit_uci), ("reply", exposure.reply_uci),
+                 ("material", exposure.material_result), ("model", model)),
+            )))
+    for assessment in result.overload:
+        lines.append(_render_assessment("assessment.overload", assessment, catalog, result))
     return "\n".join(lines)
+
+
+def _render_assessment(
+    catalog_id: str, assessment, catalog: ExplanationCatalog, result: AnalysisResult,
+) -> str:
+    coverage = assessment.coverage
+    conclusion = catalog.render(Explanation(
+        "", f"assessment.conclusion.{assessment.conclusion.value}",
+    ))
+    text = catalog.render(Explanation(
+        "", catalog_id,
+        (("conclusion", conclusion), ("examined", coverage.examined),
+         ("total", coverage.total), ("unresolved", coverage.unresolved)),
+    ))
+    if hasattr(assessment, "root_uci"):
+        candidate = next((item for item in result.candidates if item.uci == assessment.root_uci), None)
+        subject = f"move {candidate.san} ({assessment.root_uci})" if candidate else f"move {assessment.root_uci}"
+    else:
+        piece_id = assessment.piece if hasattr(assessment, "piece") else assessment.defender
+        placement = next(item for item in result.assessment_pieces if item.piece_id == piece_id)
+        subject = f"{placement.square} {placement.color} {placement.piece_type}"
+    return f"{subject}: {text}"
 
 
 def _explanation_priority(explanation: Explanation) -> tuple[int, str]:
     catalog_id = explanation.catalog_id
     priority = {
-        "position.in_check": 0,
-        "position.mate_in_one": 1,
+        "engine.reported_mate": 0,
+        "position.mate_in_one": 0,
+        "position.in_check": 1,
         "candidate.allows_opponent_mate_in_one": 2,
     }.get(catalog_id, 3)
     return priority, explanation.explanation_id
 
 
-def _delta_text(delta: MoveDelta) -> str:
+def _delta_text(
+    delta: MoveDelta,
+    *,
+    catalog: ExplanationCatalog | None = None,
+    detailed: bool = False,
+) -> str:
     moved = delta.moved
     parts = [
         f"Changed: {delta.san} — {moved.after.color} {moved.after.piece_type} "
@@ -175,17 +229,52 @@ def _delta_text(delta: MoveDelta) -> str:
         parts.append(f"rook {rook.before.square}→{rook.after.square}")
     if delta.promoted:
         parts.append(f"promoted to {moved.after.piece_type}")
-    added = len(delta.attacks_added)
-    removed = len(delta.attacks_removed)
-    if added or removed:
-        parts.append(f"geometric attacks +{added}/−{removed}")
-    pins_added = len(delta.pins_added)
-    pins_removed = len(delta.pins_removed)
-    if pins_added or pins_removed:
-        parts.append(f"absolute pins +{pins_added}/−{pins_removed}")
     if delta.gives_check:
         parts.append("gives check")
-    return "; ".join(parts)
+    facts = _relationship_changes(delta, catalog)
+    if detailed:
+        return "\n".join(("; ".join(parts), *facts))
+    return "; ".join((*parts, *facts[:3]))
+
+
+def _relationship_changes(delta: MoveDelta, catalog: ExplanationCatalog | None) -> tuple[str, ...]:
+    before = {piece.piece_id: piece for piece in delta.before_pieces}
+    after = {piece.piece_id: piece for piece in delta.after_pieces}
+    changes: list[str] = []
+    for items, added in ((delta.contacts_added, True), (delta.contacts_removed, False)):
+        placements = after if added else before
+        heading = _catalog_text(catalog, "cli.contact_added" if added else "cli.contact_removed")
+        for contact in items:
+            changes.append(
+                f"{heading} {_piece_label(placements[contact.controller])} {contact.kind.value}s "
+                f"{_piece_label(placements[contact.subject])}"
+            )
+    for items, added in (
+        (delta.geometrically_undefended_added, True),
+        (delta.geometrically_undefended_removed, False),
+    ):
+        placements = after if added else before
+        for item in items:
+            heading = _catalog_text(catalog, "cli.undefended_added" if added else "cli.undefended_removed")
+            changes.append(f"{heading} {_piece_label(placements[item.piece])}")
+    for items, added in ((delta.latent_rays_added, True), (delta.latent_rays_removed, False)):
+        placements = after if added else before
+        heading = _catalog_text(catalog, "cli.latent_ray_added" if added else "cli.latent_ray_removed")
+        for ray in items:
+            target = f" toward {_piece_label(placements[ray.target])}" if ray.target is not None else ""
+            changes.append(
+                f"{heading} {_piece_label(placements[ray.slider])} {ray.direction}, blocked by "
+                f"{_piece_label(placements[ray.blocker])}{target}"
+            )
+    for items, added in ((delta.pins_added, True), (delta.pins_removed, False)):
+        placements = after if added else before
+        heading = _catalog_text(catalog, "cli.pin_added" if added else "cli.pin_removed")
+        for pin in items:
+            changes.append(
+                f"{heading} {_piece_label(placements[pin.piece])} to "
+                f"{_piece_label(placements[pin.king])}"
+            )
+    return tuple(changes)
 
 
 def render_json(view: SessionView) -> str:
@@ -251,7 +340,9 @@ def render_games(view: SessionView) -> str:
     return "\n".join(lines)
 
 
-def render_inspection(view: SessionView, square: str) -> str:
+def render_inspection(
+    view: SessionView, square: str, catalog: ExplanationCatalog | None = None,
+) -> str:
     placements = {piece.piece_id: piece for piece in view.facts.pieces}
     occupant = next((piece for piece in view.facts.pieces if piece.square == square), None)
     attacks = tuple(attack for attack in view.facts.attacks if attack.target.square == square)
@@ -284,11 +375,95 @@ def render_inspection(view: SessionView, square: str) -> str:
             or "none"
         )
     )
+    contacts = tuple(
+        contact
+        for contact in view.facts.contacts
+        if contact.controller_square.square == square or contact.subject_square.square == square
+    )
+    lines.append(
+        "Piece contacts: "
+        + (
+            ", ".join(
+                f"{_piece_label(placements[contact.controller])} {contact.kind.value}s "
+                f"{_piece_label(placements[contact.subject])}"
+                for contact in contacts
+            )
+            or "none"
+        )
+    )
+    rays = tuple(
+        ray
+        for ray in view.facts.latent_rays
+        if ray.source.square == square or ray.blocker_square.square == square
+        or any(reference.square == square for reference in ray.beyond)
+    )
+    lines.append(
+        "Latent slider rays: "
+        + (
+            ", ".join(
+                f"{_piece_label(placements[ray.slider])} {ray.direction} blocked by "
+                f"{_piece_label(placements[ray.blocker])}"
+                + (f" toward {_piece_label(placements[ray.target])}" if ray.target is not None else "")
+                for ray in rays
+            )
+            or "none"
+        )
+    )
+    undefended = tuple(item for item in view.facts.geometrically_undefended if item.square.square == square)
+    lines.append(
+        "Geometrically undefended: "
+        + (", ".join(_piece_label(placements[item.piece]) for item in undefended) or "none")
+    )
+    if view.analysis is not None and catalog is not None:
+        piece = next((item for item in view.pieces if item.square == square), None)
+        if piece is not None:
+            for assessment in view.analysis.trapping:
+                if assessment.piece == piece.piece_id:
+                    lines.append(_render_assessment("assessment.trapping", assessment, catalog, view.analysis))
+                    for exposure in assessment.material_exposures:
+                        model = catalog.render(Explanation("", f"assessment.material_model.{exposure.model}"))
+                        lines.append(catalog.render(Explanation(
+                            "", "assessment.material_exposure",
+                            (("exit", exposure.exit_uci), ("reply", exposure.reply_uci),
+                             ("material", exposure.material_result), ("model", model)),
+                        )))
+            for assessment in view.analysis.overload:
+                if assessment.defender == piece.piece_id:
+                    lines.append(_render_assessment("assessment.overload", assessment, catalog, view.analysis))
     return "\n".join(lines)
 
 
 def _piece_label(piece: PiecePlacement) -> str:
     return f"{piece.square} {piece.color} {piece.piece_type}"
+
+
+def render_changes(view: SessionView, catalog: ExplanationCatalog | None = None) -> str:
+    return (
+        _delta_text(view.previous_move, catalog=catalog, detailed=True)
+        if view.previous_move is not None
+        else _catalog_text(catalog, "cli.no_previous_move")
+    )
+
+
+def render_line_preview(
+    preview: CandidateLinePreview,
+    catalog: ExplanationCatalog | None = None,
+    orientation: ResolvedOrientation = ResolvedOrientation.WHITE,
+) -> str:
+    lines = list(_oriented_board_rows(preview.board_rows, orientation))
+    lines.extend([
+        f"Candidate line: {preview.candidate.san} ({preview.candidate.uci}), ply {preview.ply}",
+        _delta_text(preview.previous_move) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root"),
+    ])
+    return "\n".join(lines)
+
+
+def _catalog_text(catalog: ExplanationCatalog | None, catalog_id: str) -> str:
+    if catalog is not None:
+        return catalog.render(Explanation("", catalog_id))
+    return ExplanationCatalog.load(
+        Path(__file__).parents[1] / "content" / "explanations.json"
+    ).render(Explanation("", catalog_id))
 
 
 def execute(
@@ -338,7 +513,9 @@ def execute(
             square = chess.square_name(chess.parse_square(argument.lower()))
         except ValueError as exc:
             raise SessionError("inspect requires a square from a1 to h8") from exc
-        return render_inspection(_shared_view(session, controller), square), False
+        return render_inspection(_shared_view(session, controller), square, catalog), False
+    if verb == "changes":
+        return render_changes(_shared_view(session, controller), catalog), False
     if verb == "start":
         return render_board(_submit(session, session.start(), controller), display.orientation), False
     if verb == "end":
@@ -373,11 +550,34 @@ def execute(
             raise SessionError("analysis is not configured")
         view = session.view()
         return render_board(session.request_analysis(controller, view=view, compare=notations), display.orientation), False
+    if verb == "probe":
+        kind, separator, value = argument.partition(" ")
+        if controller is None:
+            raise SessionError("analysis is not configured")
+        if not separator or not value.strip():
+            raise SessionError("probe requires 'move <SAN-or-UCI>' or 'piece <square>'")
+        subject = session.resolve_probe(kind, value.strip())
+        return render_board(
+            session.request_probe(controller, subject, view=session.view()), display.orientation,
+        ), False
     if verb == "details":
         view = _shared_view(session, controller)
         if catalog is None or view.analysis is None or view.analysis.revision != view.revision:
             raise SessionError("no current analysis details are available")
         return render_details(view.analysis, _positive_int(argument, "candidate number"), catalog), False
+    if verb == "line":
+        parts = argument.split()
+        if len(parts) != 2:
+            raise SessionError("line requires a candidate number and ply")
+        try:
+            preview = preview_candidate_line(
+                _shared_view(session, controller),
+                _positive_int(parts[0], "candidate number"),
+                _nonnegative_int(parts[1], "ply"),
+            )
+        except PreviewError as exc:
+            raise SessionError(str(exc)) from exc
+        return render_line_preview(preview, catalog, display.orientation), False
     if verb == "json":
         return render_json(_shared_view(session, controller)), False
     if verb == "cancel":
@@ -388,8 +588,9 @@ def execute(
         return (
             "load <path> | fen <FEN> | games | game <n> | board | start | end | "
             "next | back | goto <ply> | variations | variation <n> | move <SAN-or-UCI> | "
-            "inspect <square> | flip | orientation [white|black|default <white|black|turn>] | "
-            "analyze | compare <move> <move> | details <n> | json | cancel | quit"
+            "inspect <square> | changes | flip | orientation [white|black|default <white|black|turn>] | "
+            "analyze | compare <move> <move> | probe move <SAN-or-UCI> | probe piece <square> | "
+            "details <n> | line <candidate-number> <ply> | json | cancel | quit"
         ), False
     if not verb:
         return "", False
@@ -397,7 +598,7 @@ def execute(
 
 
 def _import_orientation(argument: str) -> tuple[Orientation | None, str]:
-    if not argument.startswith("--orientation"):
+    if argument != "--orientation" and not argument.startswith("--orientation "):
         return None, argument
     option, separator, remainder = argument.partition(" ")
     if option != "--orientation" or not separator:

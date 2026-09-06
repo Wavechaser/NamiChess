@@ -1,6 +1,6 @@
 # NamiChess Architecture
 
-**Status:** M1 documentation checkpoint · **Scope:** durable boundaries and data flow
+**Status:** M2 interface and analysis contracts · **Scope:** durable boundaries and data flow
 
 ## 1. System shape
 
@@ -353,6 +353,9 @@ Schema version 2 adds identity-bearing piece contacts, geometrically undefended
 pieces, and latent slider rays to position facts and their added/removed forms to
 move deltas. These remain geometric observations rather than tactical ownership
 or unconditional safety claims.
+It also carries immediate parent/child navigation references and typed local
+assessments. Candidate preview validates the candidate/PV root and reconstructs
+the requested board and facts without changing the cursor or starting analysis.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.

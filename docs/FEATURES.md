@@ -27,14 +27,14 @@ relevant absolute pins. Geometric attack does not imply legal access or safety.
 After a move, the shared view also exposes identity-bearing placement, capture,
 promotion, castling-rook, attack, slider-ray, pin, and check changes.
 
-The following sections describe the wider product roadmap; only behavior named
-above and in the M1 plan is implemented in the current milestone.
+The M2 section below describes implemented additions. Later sections describe
+the wider product roadmap and do not imply that every listed feature is available.
 
 ## M2 direction — active scope
 
 M2 centers on continuity: explain how each legal move changes piece relationships
-and what those changes enable. The active implementation plan determines the
-checkpoint sequence; this section includes both completed and planned behavior.
+and what those changes enable. Its analysis and shared interface additions are
+implemented; acceptance evidence is recorded in the milestone plan.
 
 - Extend the shared before/after facts with newly attacked targets, gained and
   lost geometric defenders, cleared and blocked rays, changed blockers, and
@@ -44,7 +44,8 @@ checkpoint sequence; this section includes both completed and planned behavior.
 - Add latent slider rays and local exchange evaluation (SEE), with explicit
   supported cases and bounded work. These analysis internals are implemented.
   SEE supplies exchange evidence, not overall move soundness or a reason to
-  discard sacrifices; application and CLI exposure remains a later checkpoint.
+  discard sacrifices. Local results are available through application snapshots
+  and CLI inspection/details.
 - Examine checks, captures, promotions, and direct attacks in bounded legal
   continuations. Recompute relationships after each ply, including counterchecks
   and intermediate moves; selective forcing search is not a complete defence
@@ -70,8 +71,8 @@ checkpoint sequence; this section includes both completed and planned behavior.
   and revision-safe updates. The interactive GUI itself remains deferred.
 
 Promotion already retains piece identity, updates piece type and geometric facts,
-and appears in move deltas and line material evidence. M2 should expand regression
-coverage for underpromotion and capture-promotion effects. A future GUI will
+and appears in move deltas and line material evidence. M2 regression coverage
+includes all four promotion types and capture-promotion effects. A future GUI will
 provide a choice among all four legal promotion types.
 
 M2 structural snapshots now record identity-bearing attack and geometric-defence
@@ -100,6 +101,12 @@ when completed target-square exchange evidence remains negative after root
 capture and promotion gains. It stays separate from mate refutation and
 move-safety conclusions. Sacrifice compensation and broader position value
 require separate engine evidence and remain unmeasured by this material model.
+
+M2 exposes these results through the shared snapshot and CLI. `changes` names
+the pieces and squares in structural transitions; `probe move` and `probe piece`
+run focused analysis; and `line` reconstructs a read-only candidate board at a
+requested ply. Concise output shows at most three priority facts, while details
+retain complete typed evidence and coverage. The actual GUI remains future work.
 
 ## Product aim
 
