@@ -4,6 +4,7 @@ import dataclasses
 
 import pytest
 
+import namichess.application.preview as preview_module
 from namichess.application.analysis import AnalysisResult, AnalysisState, CandidateResult
 from namichess.application.preview import PreviewError, preview_candidate_line
 from namichess.application.session import Session
@@ -76,3 +77,23 @@ def test_preview_rejects_a_pv_that_does_not_start_with_the_candidate() -> None:
     )
     with pytest.raises(PreviewError, match="begin"):
         preview_candidate_line(current, 1, 0)
+
+
+def test_preview_computes_each_delta_endpoint_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    source = Session().load_fen("7k/8/8/8/8/8/8/R6K w - - 0 1")
+    candidate = _candidate(source, "a1a2", ("a1a2",))
+    shared = dataclasses.replace(
+        source, analysis=AnalysisResult(7, source.revision, AnalysisState.COMPLETED, (candidate,)),
+    )
+    real_position_facts = preview_module.position_facts
+    calls = []
+
+    def counted_position_facts(context):
+        calls.append(context.position_id)
+        return real_position_facts(context)
+
+    monkeypatch.setattr(preview_module, "position_facts", counted_position_facts)
+    preview = preview_candidate_line(shared, 1, 1)
+
+    assert preview.previous_move is not None
+    assert calls == [preview.context.position_id, preview.previous_move.before]

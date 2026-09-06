@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import chess
 
-from namichess.analysis.static import MoveDelta, PositionFacts, move_delta, position_facts
+from namichess.analysis.static import MoveDelta, PositionFacts, _move_delta_from_facts, position_facts
 from namichess.application.analysis import CandidateResult
 from namichess.analysis.continuations import continuation_context
 from namichess.application.views import SessionView
@@ -66,13 +66,17 @@ def preview_candidate_line(view: SessionView, candidate_number: int, ply: int) -
     current = contexts[ply]
     parent = contexts[ply - 1] if ply else None
     child = contexts[ply + 1] if ply < len(candidate.pv) else None
+    facts = position_facts(current)
     return CandidateLinePreview(
         revision=view.revision,
         candidate=candidate,
         ply=ply,
         context=current,
-        facts=position_facts(current),
-        previous_move=move_delta(parent, current) if parent is not None else None,
+        facts=facts,
+        previous_move=(
+            _move_delta_from_facts(parent, current, position_facts(parent), facts)
+            if parent is not None else None
+        ),
         source_position_id=view.position.position_id,
         parent_position_id=parent.position_id if parent is not None else None,
         child_position_id=child.position_id if child is not None else None,

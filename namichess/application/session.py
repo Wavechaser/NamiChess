@@ -8,7 +8,7 @@ import itertools
 import chess
 import chess.pgn
 
-from namichess.analysis.static import move_delta, position_facts
+from namichess.analysis.static import _move_delta_from_facts, position_facts
 from namichess.application.analysis import AnalysisController, ProbeSubject
 from namichess.application.imports import (
     ImportedDocument,
@@ -214,7 +214,10 @@ class Session:
         facts = position_facts(context)
         previous_move = None
         if node.parent is not None:
-            previous_move = move_delta(self._context(node.parent), context)
+            parent_context = self._context(node.parent)
+            previous_move = _move_delta_from_facts(
+                parent_context, context, position_facts(parent_context), facts,
+            )
         summaries = tuple(
             GameSummary(
                 number=index + 1,

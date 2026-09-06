@@ -6,7 +6,7 @@ from pathlib import Path
 import chess
 import pytest
 
-from namichess.analysis.static import ContactKind, move_delta, position_facts
+from namichess.analysis.static import ContactKind, _move_delta_from_facts, move_delta, position_facts
 from namichess.domain import PositionContext
 
 
@@ -350,3 +350,33 @@ def test_rejects_current_fen_that_does_not_match_root_history() -> None:
         assert "does not match" in str(error)
     else:
         raise AssertionError("mismatched context was accepted")
+
+
+def test_internal_delta_assembly_rejects_facts_from_another_context() -> None:
+    root = chess.STARTING_FEN
+    before = context(root)
+    after = context(root, moves=("e2e4",), path=(0,))
+    unrelated = PositionContext(
+        before.document_id + 1,
+        before.game_number,
+        before.node_path,
+        before.starting_fen,
+        before.moves,
+        before.current_fen,
+        before.has_history,
+    )
+
+    with pytest.raises(ValueError, match="facts must belong"):
+        _move_delta_from_facts(before, after, position_facts(unrelated), position_facts(after))
+
+
+def test_internal_delta_assembly_matches_public_validated_result() -> None:
+    root = "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1"
+    before = context(root)
+    after = context(root, moves=("e1g1",), path=(0,))
+
+    assembled = _move_delta_from_facts(
+        before, after, position_facts(before), position_facts(after),
+    )
+
+    assert assembled == move_delta(before, after)

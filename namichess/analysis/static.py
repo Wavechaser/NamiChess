@@ -184,18 +184,26 @@ def position_facts(context: PositionContext) -> PositionFacts:
 
 def move_delta(before_context: PositionContext, after_context: PositionContext) -> MoveDelta:
     """Compare contexts separated by exactly one legal move."""
-    if after_context.moves[:-1] != before_context.moves or len(after_context.moves) != len(before_context.moves) + 1:
-        raise ValueError("after context must extend before context by exactly one move")
-    if (before_context.document_id, before_context.game_number) != (
-        after_context.document_id,
-        after_context.game_number,
-    ):
-        raise ValueError("contexts must belong to the same game")
-    if before_context.starting_fen != after_context.starting_fen:
-        raise ValueError("contexts must have the same root position")
+    _validate_delta_contexts(before_context, after_context)
+    return _move_delta_from_facts(
+        before_context,
+        after_context,
+        position_facts(before_context),
+        position_facts(after_context),
+    )
 
-    before = position_facts(before_context)
-    after = position_facts(after_context)
+
+def _move_delta_from_facts(
+    before_context: PositionContext,
+    after_context: PositionContext,
+    before: PositionFacts,
+    after: PositionFacts,
+) -> MoveDelta:
+    """Assemble a one-move delta from trusted facts computed for these exact contexts."""
+    _validate_delta_contexts(before_context, after_context)
+    if before.position_id != before_context.position_id or after.position_id != after_context.position_id:
+        raise ValueError("position facts must belong to the supplied contexts")
+
     uci = after_context.moves[-1]
     legal = next((item for item in before.legal_moves if item.uci == uci), None)
     if legal is None:
@@ -247,6 +255,18 @@ def move_delta(before_context: PositionContext, after_context: PositionContext) 
         before_pieces=before.pieces,
         after_pieces=after.pieces,
     )
+
+
+def _validate_delta_contexts(before_context: PositionContext, after_context: PositionContext) -> None:
+    if after_context.moves[:-1] != before_context.moves or len(after_context.moves) != len(before_context.moves) + 1:
+        raise ValueError("after context must extend before context by exactly one move")
+    if (before_context.document_id, before_context.game_number) != (
+        after_context.document_id,
+        after_context.game_number,
+    ):
+        raise ValueError("contexts must belong to the same game")
+    if before_context.starting_fen != after_context.starting_fen:
+        raise ValueError("contexts must have the same root position")
 
 
 def _legal_move(

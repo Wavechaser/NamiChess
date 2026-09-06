@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 
+import namichess.application.session as session_module
 from namichess.application.imports import ImportError
 from namichess.application.analysis import AnalysisResult, AnalysisState
 from namichess.application.session import Session, SessionError
@@ -135,6 +136,23 @@ def test_shared_view_exposes_position_facts_and_previous_move_delta() -> None:
     assert moved.previous_move.san == "Kd2"
     assert moved.previous_move.before == root.facts.position_id
     assert moved.previous_move.after == moved.facts.position_id
+
+
+def test_session_view_computes_each_delta_endpoint_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = Session()
+    session.load_fen("7k/8/8/8/8/8/8/R6K w - - 0 1")
+    real_position_facts = session_module.position_facts
+    calls = []
+
+    def counted_position_facts(context):
+        calls.append(context.position_id)
+        return real_position_facts(context)
+
+    monkeypatch.setattr(session_module, "position_facts", counted_position_facts)
+    moved = session.play("Ra2")
+
+    assert moved.previous_move is not None
+    assert calls == [moved.position.position_id, moved.previous_move.before]
 
 
 def test_analysis_view_filters_results_from_another_revision() -> None:
