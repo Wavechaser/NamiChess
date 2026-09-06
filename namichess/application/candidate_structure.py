@@ -10,6 +10,7 @@ from namichess.analysis.consequences import (
     ConsequenceKind, MoveAccount, RawFactKind, RawFactRef, move_account,
 )
 from namichess.analysis.continuations import continuation_context
+from namichess.analysis.mechanisms import MoveMechanisms, move_mechanisms
 from namichess.analysis.static import (
     ContactKind,
     MoveDelta,
@@ -41,6 +42,7 @@ class DefenseChange:
 class RootStructure:
     delta: MoveDelta
     account: MoveAccount
+    mechanisms: MoveMechanisms
     defense_changes: tuple[DefenseChange, ...]
     omitted_count: int
     omitted_direct_count: int
@@ -135,6 +137,7 @@ def build_root_structures(
         structures[uci] = RootStructure(
             delta,
             account,
+            move_mechanisms(delta, after),
             selected,
             len(changes) - len(selected),
             direct_total - retained_direct,

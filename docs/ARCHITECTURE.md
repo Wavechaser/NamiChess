@@ -394,6 +394,15 @@ state matches the baseline is retained when another root changes that state.
 Current after-root squares and references to contrasting root position IDs keep
 the comparison resolvable for non-CLI consumers. These structural differences
 do not explain or justify an engine score.
+Immediate move mechanisms are a separate projection beside the move account in
+session, preview, and candidate-root views. They retain the actual checked king,
+each checker with its direct or discovered role, new attacks, and structural
+forks. Fork targets are identities, including a checked king; an unchanged
+relationship is not newly established merely because a piece changed squares.
+Post-move contacts support existing fork targets, while newly established
+relationships cite raw delta contacts. These records describe geometry and
+check, not legal capture availability or material gain. Check provenance is
+independent of the compact move-account selection budget.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.

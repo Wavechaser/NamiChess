@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import chess
 
 from namichess.analysis.consequences import MoveAccount, move_account
+from namichess.analysis.mechanisms import MoveMechanisms, move_mechanisms
 from namichess.analysis.static import MoveDelta, PositionFacts, _move_delta_from_facts, position_facts
 from namichess.application.analysis import CandidateResult
 from namichess.application.attention import AttentionSelection, select_attention
@@ -31,6 +32,7 @@ class CandidateLinePreview:
     facts: PositionFacts
     previous_move: MoveDelta | None
     move_account: MoveAccount | None
+    mechanisms: MoveMechanisms | None
     attention: AttentionSelection
     source_position_id: PositionId
     parent_position_id: PositionId | None
@@ -87,6 +89,10 @@ def preview_candidate_line(view: SessionView, candidate_number: int, ply: int) -
         facts=facts,
         previous_move=previous_move,
         move_account=account,
+        mechanisms=(
+            move_mechanisms(previous_move, facts)
+            if previous_move is not None and account is not None else None
+        ),
         attention=select_attention(
             facts, account, terminal=current_board.is_game_over(claim_draw=False),
         ),

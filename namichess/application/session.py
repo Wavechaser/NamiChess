@@ -9,6 +9,7 @@ import chess
 import chess.pgn
 
 from namichess.analysis.consequences import move_account
+from namichess.analysis.mechanisms import move_mechanisms
 from namichess.analysis.static import _move_delta_from_facts, position_facts
 from namichess.application.analysis import AnalysisController, ProbeSubject
 from namichess.application.attention import select_attention
@@ -251,6 +252,10 @@ class Session:
             parent_position_id=self._context(node.parent).position_id if node.parent is not None else None,
             child_position_ids=tuple(self._context(child).position_id for child in node.variations),
             attention=select_attention(facts, account, terminal=board.is_game_over(claim_draw=False)),
+            mechanisms=(
+                move_mechanisms(previous_move, facts)
+                if previous_move is not None and account is not None else None
+            ),
         )
 
     def _context(self, node: chess.pgn.GameNode) -> PositionContext:

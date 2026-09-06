@@ -90,6 +90,7 @@ def test_root_delta_preserves_current_promotion_type(promotion: str) -> None:
     assert structure.delta.promoted
     assert structure.delta.moved.after.piece_type == chess.piece_name(chess.PIECE_SYMBOLS.index(promotion))
     assert structure.account.after == structure.delta.after
+    assert structure.mechanisms.after == structure.delta.after
 
 
 def test_root_structure_selection_is_bounded_and_raw_sources_close() -> None:

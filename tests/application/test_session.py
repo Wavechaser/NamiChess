@@ -129,6 +129,7 @@ def test_shared_view_exposes_position_facts_and_previous_move_delta() -> None:
     assert any(attack.attacker == knight.piece_id and attack.target.square == "c3" for attack in root.facts.attacks)
     assert not any(move.mover == knight.piece_id and move.target.square == "c3" for move in root.facts.legal_moves)
     assert root.previous_move is None
+    assert root.mechanisms is None
 
     moved = session.play("Kd2")
     assert moved.previous_move is not None
@@ -136,6 +137,8 @@ def test_shared_view_exposes_position_facts_and_previous_move_delta() -> None:
     assert moved.previous_move.san == "Kd2"
     assert moved.previous_move.before == root.facts.position_id
     assert moved.previous_move.after == moved.facts.position_id
+    assert moved.mechanisms is not None
+    assert moved.mechanisms.after == moved.facts.position_id
 
 
 def test_session_view_computes_each_delta_endpoint_once(monkeypatch: pytest.MonkeyPatch) -> None:

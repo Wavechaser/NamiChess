@@ -46,6 +46,8 @@ def test_non_cli_preview_reconstructs_special_move_without_mutating_session(fen:
     assert root.context == source.position
     assert root.parent_position_id is None
     assert preview.previous_move.uci == uci
+    assert preview.mechanisms is not None
+    assert preview.mechanisms.after == preview.context.position_id
     assert preview.context.document_id == source.position.document_id
     assert preview.context.game_number == source.position.game_number
     assert preview.context.starting_fen == source.position.starting_fen
