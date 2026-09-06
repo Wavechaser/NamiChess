@@ -98,6 +98,22 @@ def test_schema_three_serializes_bounded_move_account_with_raw_fact_sources() ->
     assert source["uci"] == payload["previous_move"]["uci"]
 
 
+def test_schema_three_serializes_attention_with_closed_current_and_move_sources() -> None:
+    session = Session()
+    session.load_fen("7k/8/8/1n6/2b5/3B4/8/K7 w - - 0 1")
+    payload = json.loads(serialize_session_view(session.play("Bxc4")))["session"]
+    attention = payload["attention"]
+    item = next(entry for entry in attention["items"] if entry["kind"] == "lost_defense_under_attack")
+
+    assert attention["position_id"] == payload["facts"]["position_id"]
+    assert item["square"]["position_id"] == attention["position_id"]
+    assert item["position_sources"] and item["move_sources"]
+    assert all(source["position_id"] == attention["position_id"] for source in item["position_sources"])
+    assert all(source["before"] == payload["previous_move"]["before"] for source in item["move_sources"])
+    assert all(source["after"] == payload["previous_move"]["after"] for source in item["move_sources"])
+    assert all(source["uci"] == payload["previous_move"]["uci"] for source in item["move_sources"])
+
+
 def test_non_cli_consumer_resolves_immediate_navigation_references() -> None:
     session = Session()
     session.load_pgn("1. e4 e5 *\n")

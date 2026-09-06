@@ -11,6 +11,7 @@ import chess.pgn
 from namichess.analysis.consequences import move_account
 from namichess.analysis.static import _move_delta_from_facts, position_facts
 from namichess.application.analysis import AnalysisController, ProbeSubject
+from namichess.application.attention import select_attention
 from namichess.application.imports import (
     ImportedDocument,
     import_fen_text,
@@ -229,6 +230,7 @@ class Session:
         )
         variations = tuple(board.san(child.move) for child in node.variations)
         outcome = board.outcome(claim_draw=False)
+        account = move_account(previous_move) if previous_move is not None else None
         return SessionView(
             revision=self._revision,
             games=summaries,
@@ -237,7 +239,7 @@ class Session:
             position=context,
             facts=facts,
             previous_move=previous_move,
-            move_account=move_account(previous_move) if previous_move is not None else None,
+            move_account=account,
             pieces=facts.pieces,
             board_rows=_board_rows(board),
             turn="white" if board.turn else "black",
@@ -248,6 +250,7 @@ class Session:
             variations=variations,
             parent_position_id=self._context(node.parent).position_id if node.parent is not None else None,
             child_position_ids=tuple(self._context(child).position_id for child in node.variations),
+            attention=select_attention(facts, account, terminal=board.is_game_over(claim_draw=False)),
         )
 
     def _context(self, node: chess.pgn.GameNode) -> PositionContext:

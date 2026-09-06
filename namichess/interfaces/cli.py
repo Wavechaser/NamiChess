@@ -20,6 +20,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 from namichess.application.imports import ImportError as ChessImportError
 from namichess.analysis.consequences import ConsequenceKind, MoveAccount, resolve_raw_fact
+from namichess.application.attention import AttentionKind, AttentionSelection
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult
 from namichess.analysis.evidence import Explanation
 from namichess.analysis.static import ContactKind, MoveDelta, PieceContact
@@ -49,6 +50,8 @@ def render_board(
     orientation: ResolvedOrientation = ResolvedOrientation.WHITE,
     catalog: ExplanationCatalog | None = None,
 ) -> str:
+    if catalog is None and (view.previous_move is not None or (view.attention and view.attention.items)):
+        catalog = _load_catalog()
     lines = list(_oriented_board_rows(view.board_rows, orientation))
     lines.append(f"Orientation: {orientation.value}")
     lines.append(f"Turn: {view.turn}")
@@ -62,8 +65,19 @@ def render_board(
         claims.append("threefold repetition")
     if claims:
         lines.append("Claimable: " + ", ".join(claims))
+    attention, covered_sources = _attention_text(
+        view.facts, view.attention, view.previous_move,
+        catalog,
+        check_explicit=view.status.value in {"check", "checkmate"}
+        or bool(view.previous_move and view.previous_move.gives_check),
+    )
+    if attention:
+        lines.append("Attention: " + "; ".join(attention))
     if view.previous_move is not None:
-        lines.append(_delta_text(view.previous_move, account=view.move_account, catalog=catalog))
+        lines.append(_delta_text(
+            view.previous_move, account=view.move_account, catalog=catalog,
+            covered_sources=covered_sources,
+        ))
     if view.analysis is not None:
         lines.extend(_analysis_summary(view.analysis))
     return "\n".join(lines)
@@ -222,6 +236,7 @@ def _delta_text(
     account: MoveAccount | None = None,
     catalog: ExplanationCatalog | None = None,
     detailed: bool = False,
+    covered_sources: frozenset = frozenset(),
 ) -> str:
     catalog = catalog or _load_catalog()
     moved = delta.moved
@@ -238,7 +253,7 @@ def _delta_text(
         parts.append(f"promoted to {moved.after.piece_type}")
     if delta.gives_check:
         parts.append("gives check")
-    facts = _account_changes(delta, account)
+    facts = _account_changes(delta, account, covered_sources)
     if account is not None and account.omitted_count:
         facts = (*facts, _catalog_text(
             catalog, "cli.move_account_omitted", (("count", account.omitted_count),),
@@ -249,7 +264,9 @@ def _delta_text(
     return "; ".join((*parts, *facts))
 
 
-def _account_changes(delta: MoveDelta, account: MoveAccount | None) -> tuple[str, ...]:
+def _account_changes(
+    delta: MoveDelta, account: MoveAccount | None, covered_sources: frozenset = frozenset(),
+) -> tuple[str, ...]:
     if account is None:
         return ()
     direct = {
@@ -258,7 +275,7 @@ def _account_changes(delta: MoveDelta, account: MoveAccount | None) -> tuple[str
     }
     changes = []
     for event in account.consequences:
-        if event.kind in direct:
+        if event.kind in direct or covered_sources.intersection(event.supporting_facts):
             continue
         subject = _account_piece_label(delta, event.subject)
         related = _account_piece_label(delta, event.related_piece)
@@ -304,6 +321,59 @@ def _account_relationship(delta: MoveDelta, event) -> str:
     if event.kind in (ConsequenceKind.OPENED_LINE, ConsequenceKind.BLOCKED_LINE):
         return "attack on" if contact.kind is ContactKind.ATTACK else "defense of"
     return "attacks" if contact.kind is ContactKind.ATTACK else "defends"
+
+
+def _attention_text(
+    facts, attention: AttentionSelection | None, delta: MoveDelta | None,
+    catalog: ExplanationCatalog | None, *, check_explicit: bool,
+):
+    if attention is None:
+        return (), frozenset()
+    lines = []
+    covered = set()
+    for item in attention.items:
+        if item.kind is AttentionKind.CHECK and check_explicit:
+            continue
+        subject = _facts_piece_label(facts, item.subject)
+        actor = _facts_piece_label(facts, item.actor)
+        related = _facts_piece_label(facts, item.related_piece)
+        if item.kind is AttentionKind.CHECK:
+            lines.append(f"{subject} is in check")
+        elif item.kind is AttentionKind.ATTACKED_UNDEFENDED:
+            lines.append(f"{subject} is attacked and geometrically undefended")
+        elif item.kind is AttentionKind.LOST_DEFENSE_UNDER_ATTACK:
+            lines.append(f"{subject} is now attacked and unguarded")
+        elif item.kind is AttentionKind.PINNED:
+            lines.append(f"{subject} is pinned to {related}")
+        elif item.kind in (AttentionKind.OPENED_LINE, AttentionKind.BLOCKED_LINE):
+            relation = _attention_relationship(delta, item)
+            verb = "opens" if item.kind is AttentionKind.OPENED_LINE else "blocks"
+            lines.append(f"{verb} {actor}'s line {relation} {subject}")
+        covered.update(item.move_sources)
+    if attention.omitted_count:
+        lines.append(_catalog_text(
+            catalog, "cli.attention_omitted", (("count", attention.omitted_count),),
+        ))
+    return tuple(lines), frozenset(covered)
+
+
+def _facts_piece_label(facts, piece_id) -> str:
+    if piece_id is None:
+        return "piece"
+    placement = next((item for item in facts.pieces if item.piece_id == piece_id), None)
+    return f"{placement.piece_type} {placement.square}" if placement is not None else "piece"
+
+
+def _attention_relationship(delta: MoveDelta | None, item) -> str:
+    if delta is None:
+        return "to"
+    contact = next((
+        fact for reference in item.move_sources
+        if isinstance((fact := resolve_raw_fact(delta, reference)), PieceContact)
+    ), None)
+    if contact is None:
+        return "to"
+    return "attack on" if contact.kind is ContactKind.ATTACK else "defense of"
 
 
 def _relationship_changes(delta: MoveDelta, catalog: ExplanationCatalog | None) -> tuple[str, ...]:
@@ -533,11 +603,23 @@ def render_line_preview(
     catalog: ExplanationCatalog | None = None,
     orientation: ResolvedOrientation = ResolvedOrientation.WHITE,
 ) -> str:
+    if catalog is None and (preview.previous_move is not None or preview.attention.items):
+        catalog = _load_catalog()
     lines = list(_oriented_board_rows(preview.board_rows, orientation))
-    lines.extend([
-        f"Candidate line: {preview.candidate.san} ({preview.candidate.uci}), ply {preview.ply}",
-        _delta_text(preview.previous_move, account=preview.move_account, catalog=catalog) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root"),
-    ])
+    lines.append(f"Candidate line: {preview.candidate.san} ({preview.candidate.uci}), ply {preview.ply}")
+    attention, covered_sources = _attention_text(
+        preview.facts, preview.attention, preview.previous_move,
+        catalog,
+        check_explicit=bool(preview.previous_move and preview.previous_move.gives_check),
+    )
+    if attention:
+        lines.append("Attention: " + "; ".join(attention))
+    lines.append(
+        _delta_text(
+            preview.previous_move, account=preview.move_account, catalog=catalog,
+            covered_sources=covered_sources,
+        ) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root")
+    )
     return "\n".join(lines)
 
 

@@ -349,6 +349,84 @@ def test_discovered_check_does_not_name_the_moving_bishop_as_checker() -> None:
     assert "bishop gives check" not in output
 
 
+@pytest.mark.parametrize(
+    ("fen", "expected"),
+    (
+        ("7k/8/8/8/8/8/r7/R6K w - - 0 1", "rook a1 is attacked and geometrically undefended"),
+        ("r6k/R7/8/8/8/8/8/7K b - - 0 1", "rook a8 is attacked and geometrically undefended"),
+    ),
+)
+def test_import_renders_shared_attention_without_a_previous_move(fen, expected) -> None:
+    output, _ = execute(Session(), f"fen {fen}")
+
+    assert f"Attention: {expected}" in output
+    assert "→" not in output
+
+
+def test_back_to_root_renders_that_positions_attention_without_stale_move_account() -> None:
+    session = Session()
+    execute(session, "fen 7k/8/8/8/8/8/r7/R6K w - - 0 1")
+    execute(session, "move Rxa2")
+
+    output, _ = execute(session, "back")
+
+    assert "Attention: rook a1 is attacked and geometrically undefended" in output
+    assert "Rxa2:" not in output
+
+
+def test_lost_defense_attention_replaces_overlapping_connected_account_clause() -> None:
+    session = Session()
+    session.load_fen("7k/8/8/1n6/2b5/3B4/8/K7 w - - 0 1")
+
+    output, _ = execute(session, "move Bxc4")
+
+    assert "Attention: knight b5 is now attacked and unguarded" in output
+    assert "knight b5 is now unguarded" not in output
+    assert "captured bishop on c4" in output
+
+
+def test_candidate_line_preview_renders_its_shared_attention_and_deduplicates_account() -> None:
+    session = Session()
+    view = session.load_fen("7k/8/8/1n6/2b5/3B4/8/K7 w - - 0 1")
+    candidate = CandidateResult(
+        "candidate:d3c4", view.position.position_id, "d3c4", "Bxc4", "white", 1,
+        None, ("d3c4",), False, (), (),
+    )
+    shared = dataclasses.replace(
+        view, analysis=AnalysisResult(7, view.revision, AnalysisState.COMPLETED, (candidate,)),
+    )
+
+    output = render_line_preview(preview_candidate_line(shared, 1, 1), CATALOG)
+
+    assert "Attention: knight b5 is now attacked and unguarded" in output
+    assert "knight b5 is now unguarded" not in output
+
+
+def test_pinned_geometric_defender_does_not_gain_material_urgency_in_attention_text() -> None:
+    session = Session()
+    session.load_fen("4rr1k/8/8/8/8/8/4RP2/4K3 b - - 0 1")
+
+    output, _ = execute(session, "move Rf4")
+
+    assert "pawn f2 is attacked and geometrically undefended" not in output
+    assert "pawn f2 is now attacked and unguarded" not in output
+    assert "won" not in output and "safe" not in output
+
+
+def test_explicit_check_status_does_not_repeat_checked_king_attention() -> None:
+    output, _ = execute(Session(), "fen 7k/6Q1/7K/8/8/8/8/8 b - - 0 1")
+
+    assert "Status: checkmate" in output
+    assert "Attention:" not in output
+
+
+def test_attention_omission_count_comes_from_shared_selection() -> None:
+    output, _ = execute(Session(), "fen 7k/3n2n1/8/8/n2Q2n1/8/8/n6K w - - 0 1")
+
+    assert output.count("is attacked and geometrically undefended") == 3
+    assert "2 more attention item(s) omitted." in output
+
+
 def test_cli_line_supports_ply_zero_and_renders_the_local_orientation() -> None:
     session = Session()
     view = session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")

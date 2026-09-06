@@ -77,7 +77,7 @@ decode output as UTF-8.
 | `fen [--orientation <white\|black\|turn>] <six-field FEN>` | Load one root-only composed or ordinary standard-chess position. |
 | `games` | List loaded games and mark the selected game. |
 | `game <n>` | Select the one-based game and its final mainline node. |
-| `board` | Show the ASCII board, coordinates, turn, terminal/draw state, latest current-revision analysis state, and a compact connected account of the prior move when available. |
+| `board` | Show the ASCII board, coordinates, turn, terminal/draw state, bounded current attention, latest current-revision analysis state, and a compact connected account of the prior move when available. |
 | `flip` | Reverse this CLI's board display without changing the position, analysis request, revision, or saved default. |
 | `orientation` | Show the current local orientation and the saved default. |
 | `orientation <white\|black>` | Set this CLI's current orientation without saving it. |
@@ -95,7 +95,7 @@ decode output as UTF-8.
 | `analyze` | Restart bounded analysis of the selected position. This also retries engine startup after failure. |
 | `probe move <SAN-or-UCI>` | Resolve a legal move and start focused analysis without moving the cursor. |
 | `probe piece <square>` | Resolve the side-to-move piece and analyze its legal exits without moving the cursor. |
-| `line <candidate-number> <ply>` | Display candidate ply zero or a later ply as a read-only board in the current orientation. |
+| `line <candidate-number> <ply>` | Display candidate ply zero or a later ply as a read-only board with its bounded attention selection in the current orientation. |
 | `compare <move> <move>` | Analyze two distinct legal SAN or UCI moves without changing the selected node. |
 | `details <candidate-number>` | Show the selected result's evidence, survey/probe scores, numbered SAN continuations, coordinates, captures, recaptures, promotions, material changes, and checks. |
 | `json` | Emit one complete versioned snapshot of the shared session and current-revision analysis. |
@@ -211,6 +211,15 @@ points to `changes` for full raw details; `changes` retains the complete raw
 relationship categories. These statements describe recorded move effects and geometric
 relationships without asserting tactical wins, intent, or the identity of a
 discovered checker.
+
+`Attention:` presents the bounded selection already attached to the current
+session or candidate-line view. It can identify the checked king, attacked and
+geometrically undefended pieces, lost defense under attack, pins, and opened or
+blocked slider lines. It does not run another query or claim that a piece is
+won, a move is safe, or a geometric defender can legally respond. When an
+attention item and the connected move account cite the same raw move facts, the
+compact board shows that relationship once. Direct move effects remain in the
+SAN header, and `changes` remains the source for full raw details.
 
 A completed result shows its state and coverage, at most three priority facts,
 and a candidate table. Priority favors current check, direct or engine-reported

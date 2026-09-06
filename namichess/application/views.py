@@ -8,6 +8,7 @@ from enum import Enum
 from namichess.analysis.static import MoveDelta, PositionFacts
 from namichess.analysis.consequences import MoveAccount
 from namichess.application.analysis import AnalysisResult
+from namichess.application.attention import AttentionSelection
 from namichess.domain.models import PiecePlacement, PositionContext, PositionId
 
 
@@ -49,3 +50,4 @@ class SessionView:
     parent_position_id: PositionId | None = None
     child_position_ids: tuple[PositionId, ...] = ()
     analysis: AnalysisResult | None = None
+    attention: AttentionSelection | None = None

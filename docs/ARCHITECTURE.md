@@ -366,6 +366,14 @@ Selection order and `omitted_count` are deterministic. Opened and blocked lines
 require a matching occupied-piece contact; lost defense requires a surviving
 piece to become geometrically undefended. These are geometric observations, not
 claims of legal access, tactical safety, intent, or engine-score causality.
+The application derives a separate, bounded `attention` selection from the
+already-computed current facts and optional move account. It prioritizes current
+check, attacked pieces that lost geometric defense, other attacked and
+geometrically undefended pieces, newly pinned pieces, supported line changes,
+and existing pins. Each item uses the current piece square and cites its exact
+position facts and move-delta sources. The shared selection is capped at three
+with an explicit `omitted_count`; it starts no search and makes no claim that a
+geometrically attacked piece can legally or safely be won.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.

@@ -28,6 +28,7 @@ _FIELDS = {
     "cli.pin_added": set(),
     "cli.pin_removed": set(),
     "cli.move_account_omitted": {"count"},
+    "cli.attention_omitted": {"count"},
     "assessment.move_safety": {"conclusion", "examined", "total", "unresolved"},
     "assessment.trapping": {"conclusion", "examined", "total", "unresolved"},
     "assessment.overload": {"conclusion", "examined", "total", "unresolved"},
