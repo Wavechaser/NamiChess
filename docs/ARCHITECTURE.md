@@ -347,7 +347,7 @@ controller state. Interfaces cannot restart obsolete analysis by returning a
 previously displayed snapshot.
 
 The interface-neutral serialization adapter renders the shared application view
-as one `schema_version: 2` JSON snapshot; the CLI delegates to it rather than
+as one `schema_version: 3` JSON snapshot; the CLI delegates to it rather than
 owning the wire shape. Squares use algebraic coordinates, moves carry
 UCI and SAN, and scores use tagged centipawn or mate values with explicit
 perspective. Progress belongs on stderr and command results on stdout. A later
@@ -359,6 +359,13 @@ or unconditional safety claims.
 It also carries immediate parent/child navigation references and typed local
 assessments. Candidate preview validates the candidate/PV root and reconstructs
 the requested board and facts without changing the cursor or starting analysis.
+Schema version 3 adds a bounded `move_account` beside each retained raw previous-
+move delta. Its typed consequences group connected structural changes, carry
+position-scoped squares and piece identities, and cite exact raw delta fields.
+Selection order and `omitted_count` are deterministic. Opened and blocked lines
+require a matching occupied-piece contact; lost defense requires a surviving
+piece to become geometrically undefended. These are geometric observations, not
+claims of legal access, tactical safety, intent, or engine-score causality.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.

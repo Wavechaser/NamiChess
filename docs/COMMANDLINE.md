@@ -213,11 +213,17 @@ the current input. `quit` does not wait for a full search.
 
 ## JSON snapshot
 
-`json` emits one object with `schema_version: 2`, `session`, and `analysis`.
+`json` emits one object with `schema_version: 3`, `session`, and `analysis`.
 The CLI delegates this shape to the shared interface serialization adapter so a
 future GUI consumer does not need to import CLI rendering code. Schema version 2
 preserves every version-1 field and encoding while adding structural facts,
 local evidence and assessments, and immediate navigation references.
+Schema version 3 preserves those fields and adds an optional bounded
+`move_account` beside `previous_move`. Each consequence carries typed piece and
+position-scoped square references plus `supporting_facts` that resolve to the
+retained raw delta. `omitted_count` reports consequences outside the shared
+selection. Consequences describe geometric or directly recorded move effects;
+they do not assert legal access, tactical safety, intent, or score causality.
 The snapshot is assembled by the application and includes analysis only when its
 position revision matches the selected session revision. `analysis` is `null`
 when no current result exists.
@@ -254,12 +260,13 @@ nested fields remain named typed values rather than encoded prose:
 
 ```json
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "session": {
     "revision": 3,
     "position": {"current_fen": "...", "moves": ["e2e4"]},
     "facts": {"pieces": [], "attacks": [], "contacts": [], "geometrically_undefended": [], "latent_rays": [], "legal_moves": [], "pins": []},
-    "previous_move": {"uci": "e2e4", "san": "e4"}
+    "previous_move": {"uci": "e2e4", "san": "e4"},
+    "move_account": {"uci": "e2e4", "consequences": [], "omitted_count": 0}
   },
   "analysis": {
     "request_id": 4,

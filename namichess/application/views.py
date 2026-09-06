@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from namichess.analysis.static import MoveDelta, PositionFacts
+from namichess.analysis.consequences import MoveAccount
 from namichess.application.analysis import AnalysisResult
 from namichess.domain.models import PiecePlacement, PositionContext, PositionId
 
@@ -36,6 +37,7 @@ class SessionView:
     position: PositionContext
     facts: PositionFacts
     previous_move: MoveDelta | None
+    move_account: MoveAccount | None
     pieces: tuple[PiecePlacement, ...]
     board_rows: tuple[str, ...]
     turn: str

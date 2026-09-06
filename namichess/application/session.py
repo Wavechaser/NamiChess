@@ -8,6 +8,7 @@ import itertools
 import chess
 import chess.pgn
 
+from namichess.analysis.consequences import move_account
 from namichess.analysis.static import _move_delta_from_facts, position_facts
 from namichess.application.analysis import AnalysisController, ProbeSubject
 from namichess.application.imports import (
@@ -236,6 +237,7 @@ class Session:
             position=context,
             facts=facts,
             previous_move=previous_move,
+            move_account=move_account(previous_move) if previous_move is not None else None,
             pieces=facts.pieces,
             board_rows=_board_rows(board),
             turn="white" if board.turn else "black",

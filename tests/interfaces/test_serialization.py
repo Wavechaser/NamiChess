@@ -24,7 +24,7 @@ def test_shared_serializer_preserves_schema_one_session_without_analysis() -> No
     serialized = serialize_session_view(view)
     payload = json.loads(serialized)
 
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert payload["analysis"] is None
     assert payload["session"]["analysis"] is None
     assert payload["session"]["position"]["current_fen"] == "7k/8/8/8/8/8/8/K7 w - - 0 1"
@@ -68,16 +68,34 @@ def test_shared_serializer_characterizes_terminal_and_promoted_positions() -> No
     assert serialize_session_view(promoted) == render_json(promoted)
 
 
-def test_schema_two_serializes_structural_relationships() -> None:
+def test_schema_three_serializes_structural_relationships() -> None:
     view = Session().load_fen("4k3/8/8/8/3p4/2P5/3P4/2B1K3 w - - 0 1")
 
     payload = json.loads(serialize_session_view(view))
     facts = payload["session"]["facts"]
 
-    assert payload["schema_version"] == 2
+    assert payload["schema_version"] == 3
     assert {contact["kind"] for contact in facts["contacts"]} == {"attack", "defend"}
     assert isinstance(facts["geometrically_undefended"], list)
     assert isinstance(facts["latent_rays"], list)
+
+
+def test_schema_three_serializes_bounded_move_account_with_raw_fact_sources() -> None:
+    session = Session()
+    session.load_fen("7k/8/8/3p4/4P3/8/8/K7 w - - 0 1")
+    payload = json.loads(serialize_session_view(session.play("exd5")))["session"]
+    account = payload["move_account"]
+
+    assert account["before"] == payload["previous_move"]["before"]
+    assert account["after"] == payload["previous_move"]["after"]
+    assert len(account["consequences"]) <= 3
+    assert account["omitted_count"] >= 0
+    capture = next(item for item in account["consequences"] if item["kind"] == "capture")
+    source = next(item for item in capture["supporting_facts"] if item["kind"] == "captured")
+    assert source["kind"] == "captured"
+    assert source["before"] == payload["previous_move"]["before"]
+    assert source["after"] == payload["previous_move"]["after"]
+    assert source["uci"] == payload["previous_move"]["uci"]
 
 
 def test_non_cli_consumer_resolves_immediate_navigation_references() -> None:
