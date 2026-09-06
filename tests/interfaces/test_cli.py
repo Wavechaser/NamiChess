@@ -542,7 +542,8 @@ def test_text_and_json_share_current_analysis_candidate() -> None:
     text = render_analysis(result, CATALOG)
     payload = json.loads(render_json(shared))
     assert "Ka2" in text and "+0.00" in text
-    assert "Fact: [Ka2] After this move" in text
+    assert "After this move" in text
+    assert "Fact: [Ka2]" not in text
     assert text.split("#  Rank", 1)[1].count("After this move") == 1
     assert payload["schema_version"] == 3
     assert payload["analysis"]["candidates"][0]["candidate_id"] == "candidate:a1a2"
@@ -552,15 +553,47 @@ def test_text_and_json_share_current_analysis_candidate() -> None:
 
 
 def test_concise_analysis_prioritizes_engine_mate_within_three_facts() -> None:
-    explanations = tuple(
-        Explanation(f"ordinary-{index}", "line.check", (("san", f"K{index}"),))
-        for index in range(4)
-    ) + (Explanation("zzz-mate", "engine.reported_mate", (("winner", "White"), ("moves", 2))),)
-    output = render_analysis(
-        AnalysisResult(1, 1, AnalysisState.COMPLETED, explanations=explanations), CATALOG,
+    explanation = Explanation(
+        "reported-mate", "engine.reported_mate", (("winner", "White"), ("moves", 2)),
     )
-    assert output.count("Fact:") == 1
-    assert "Stockfish reports White mates in 2 moves" in output
+    candidate = CandidateResult(
+        "candidate", PositionId(1, 1, ()), "a1a2", "Ka2", "white", 1,
+        EngineScore(None, 2, "white", ScoreBound.EXACT), (), False, ("reported-mate",), (),
+    )
+    result = AnalysisResult(1, 1, AnalysisState.COMPLETED, (candidate,), (explanation,))
+
+    compact = render_analysis(result, CATALOG)
+    details = render_details(result, 1, CATALOG)
+
+    assert "white mates in 2" in compact
+    assert "Stockfish reports" not in compact
+    assert "Stockfish reports White mates in 2 moves" in details
+
+
+def test_candidate_mate_warning_outranks_repeated_engine_mate_narration_in_compact_output() -> None:
+    position = PositionId(1, 1, ())
+    candidates = tuple(
+        CandidateResult(
+            f"candidate-{index}", position, f"a1{square}", san, "white", index,
+            EngineScore(None, 2 + index, "white", ScoreBound.EXACT), (), False,
+            (("direct-warning", "reported-2", "reported-1")[index - 1],), (),
+        )
+        for index, (square, san) in enumerate((("a2", "Ka2"), ("b1", "Kb1"), ("b2", "Kb2")), 1)
+    )
+    explanations = (
+        Explanation("reported-1", "engine.reported_mate", (("winner", "White"), ("moves", 3))),
+        Explanation("reported-2", "engine.reported_mate", (("winner", "White"), ("moves", 4))),
+        Explanation("direct-warning", "candidate.allows_opponent_mate_in_one", (("reply_count", 1),)),
+    )
+
+    compact = render_analysis(
+        AnalysisResult(1, 1, AnalysisState.COMPLETED, candidates, explanations), CATALOG,
+    )
+
+    assert "Fact:" not in compact
+    assert "Stockfish reports" not in compact
+    assert "After this move, the opponent has 1 mate-in-one" in compact
+    assert "white mates in 3" in compact and "white mates in 5" in compact
 
 
 def _candidate_comparison(fen: str, roots: tuple[str, ...], sans: tuple[str, ...]):

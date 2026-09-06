@@ -99,18 +99,11 @@ def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
     lines = _analysis_summary(result)
     explanations = {item.explanation_id: item for item in result.explanations}
     evidence = {item.evidence_id: item for item in result.evidence}
-    critical: list[str] = []
-    ordinary: list[str] = []
+    current_facts: list[str] = []
     for explanation in sorted(result.explanations, key=_explanation_priority):
-        if explanation.catalog_id in {"line.capture", "line.check"}:
+        if explanation.catalog_id not in {"position.in_check", "position.mate_in_one"}:
             continue
-        candidate = next(
-            (item for item in result.candidates if explanation.explanation_id in item.explanation_refs),
-            None,
-        )
-        prefix = f"[{candidate.san}] " if candidate is not None else ""
-        rendered = f"Fact: {prefix}{_render_fact(explanation, catalog, evidence)}"
-        (critical if _explanation_priority(explanation)[0] < 3 else ordinary).append(rendered)
+        current_facts.append(f"Fact: {_render_fact(explanation, catalog, evidence)}")
     assessments: list[str] = []
     for assessment in result.trapping:
         assessments.append("Fact: " + _render_assessment("assessment.trapping", assessment, catalog, result))
@@ -118,9 +111,10 @@ def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
         assessments.append("Fact: " + _render_assessment("assessment.move_safety", assessment, catalog, result))
     for assessment in result.overload:
         assessments.append("Fact: " + _render_assessment("assessment.overload", assessment, catalog, result))
-    lines.extend((*critical, *assessments, *ordinary)[:3])
+    shown_current = current_facts[:3]
+    lines.extend(shown_current)
     if result.candidates:
-        lines.append("#  Rank  Move  Score  Summary")
+        lines.append("#  Rank  Move  Engine score  Summary")
     for number, candidate in enumerate(result.candidates, 1):
         candidate_explanations = [explanations[ref] for ref in candidate.explanation_refs if ref in explanations]
         summary = _candidate_summary(candidate, candidate_explanations, catalog)
@@ -128,6 +122,7 @@ def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
             f"{number}  {candidate.rank if candidate.rank is not None else '-'}  {candidate.san}  "
             f"{_score_text(candidate)}  {summary}"
         )
+    lines.extend(assessments[:max(0, 3 - len(shown_current))])
     return "\n".join(lines)
 
 
@@ -219,11 +214,13 @@ def _candidate_summary(
         if candidate.root_structure is None else list(_candidate_structure_clauses(candidate, compact=True))
     )
     warning = next((
-        item for item in sorted(explanations, key=_explanation_priority)
-        if item.catalog_id in {
-            "candidate.allows_opponent_mate_in_one", "engine.reported_mate",
-        }
+        item for item in explanations
+        if item.catalog_id == "candidate.allows_opponent_mate_in_one"
     ), None)
+    if warning is None and (candidate.score is None or candidate.score.mate is None):
+        warning = next((
+            item for item in explanations if item.catalog_id == "engine.reported_mate"
+        ), None)
     if warning is not None:
         clauses.append(catalog.render(warning))
     return "; ".join(clauses)

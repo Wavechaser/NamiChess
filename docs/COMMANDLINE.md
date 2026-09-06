@@ -221,25 +221,22 @@ attention item and the connected move account cite the same raw move facts, the
 compact board shows that relationship once. Direct move effects remain in the
 SAN header, and `changes` remains the source for full raw details.
 
-A completed result shows its state and coverage, at most three priority facts,
-and a candidate table. Priority favors current check, direct or engine-reported
-mate, and focused assessment results before ordinary line facts. Candidate facts
-are prefixed with the candidate's root SAN so facts from different continuations
-cannot be confused. Each table row contains one concise priority explanation;
-`details` contains the complete evidence.
-
-Candidate rows lead with the shared immediate root structure. When selected
+A completed result shows its state and coverage, current-position check or
+legal-mate facts, and then the candidate table. Bounded local assessments follow
+the table. Candidate rows lead with the shared immediate root structure. When selected
 roots differ in a piece's geometric defenders, the row identifies added,
 removed, or replaced defender identities; it says defense is unchanged only
 when the shared comparison records equality with another differing root. One or
 two such contrasts precede remaining bounded root-account effects. Compact rows
 show at most three structural clauses plus one combined direct-effect clause.
-Root-local omission counts stay explicit. A candidate without shared root structure says
-that structure is unavailable. Ordinary captures and checks later in a
+Root-local omission counts stay explicit. A candidate without shared root
+structure says that structure is unavailable. Ordinary captures and checks later in a
 principal variation remain in `details` instead of displacing immediate
-structure in the compact table. Current-position check or mate, a direct
-candidate mate-in-one warning, and qualified engine-reported mate evidence
-remain visible.
+structure in the compact table. A direct candidate mate-in-one warning remains
+in that candidate's row and takes priority over repeated engine mate prose. The
+engine score column already displays a mate score; the qualified reported-mate
+sentence and survey/probe disagreement prose remain in `details` with the
+complete evidence.
 
 `failed` means the engine request failed while the static session remains usable.
 If the configured file was temporarily unavailable, restore it at the same path
