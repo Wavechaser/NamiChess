@@ -99,6 +99,7 @@ paths.
 - [Features](docs/FEATURES.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Command-line guide](docs/COMMANDLINE.md)
+- [M2 ablation study](docs/M2-ABLATION.md)
 - [Historical M1 implementation plan](docs/obsolete/M1-PLAN.md)
 - [Historical M1 invariant review](docs/obsolete/M1-INTEGRATION-REVIEW.md)
 - [Historical M2 implementation and acceptance plan](docs/obsolete/M2-PLAN.md)
