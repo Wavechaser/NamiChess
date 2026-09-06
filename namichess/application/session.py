@@ -17,6 +17,7 @@ from namichess.application.imports import (
 )
 from namichess.application.views import GameSummary, PositionStatus, SessionView
 from namichess.domain.models import PositionContext
+from namichess.domain.notation import resolve_legal_move
 
 
 class SessionError(ValueError):
@@ -116,16 +117,9 @@ class Session:
         node = self._require_node()
         board = node.board()
         try:
-            move = chess.Move.from_uci(notation)
-            if move not in board.legal_moves:
-                raise ValueError
-        except ValueError:
-            try:
-                move = board.parse_san(notation)
-            except ValueError as exc:
-                raise SessionError(f"{notation!r} is not a legal unambiguous SAN or UCI move") from exc
-            if move == chess.Move.null() or move not in board.legal_moves:
-                raise SessionError(f"{notation!r} is not a legal unambiguous SAN or UCI move")
+            move = resolve_legal_move(board, notation)
+        except ValueError as exc:
+            raise SessionError(str(exc)) from exc
         for child in node.variations:
             if child.move == move:
                 return self._select(self._game_index, child)
@@ -137,14 +131,9 @@ class Session:
         resolved: list[str] = []
         for notation in notations:
             try:
-                move = chess.Move.from_uci(notation)
-                if move not in board.legal_moves:
-                    raise ValueError
-            except ValueError:
-                try:
-                    move = board.parse_san(notation)
-                except ValueError as exc:
-                    raise SessionError(f"{notation!r} is not a legal unambiguous SAN or UCI move") from exc
+                move = resolve_legal_move(board, notation)
+            except ValueError as exc:
+                raise SessionError(str(exc)) from exc
             uci = move.uci()
             if uci in resolved:
                 raise SessionError("compare requires two distinct legal moves")

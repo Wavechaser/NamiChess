@@ -259,8 +259,11 @@ Users can select any resulting ply for analysis.
 The M1 session keeps the parsed starting position, move history, selected node,
 and in-memory trial variations. Loads are transactional and every position
 change advances a revision that invalidates stale analysis. FEN and PGN imports
-are strict: invalid, incomplete, unparseable, or silently truncated content is
-rejected with an actionable error, and M1 never repairs input. Composed positions
+retain strict structure and legality: invalid, unparseable, or silently truncated
+content is rejected with an actionable error. A shared domain move resolver
+accepts uniquely legal case-insensitive SAN shorthand with omitted effects and
+returns the canonical legal move; imports and typed commands use the same rule.
+This normalization never repairs broken PGN structure or FEN state. Composed positions
 use ordinary standard-chess move generation and terminal detection; excess
 material is accepted without requiring historical reachability. Engine analysis
 is explicitly unsupported above 32 occupied squares, while navigation and static

@@ -71,6 +71,48 @@ def test_piece_identity_survives_promotion_and_castling() -> None:
     assert {piece.square for piece in castled.pieces} >= {"g1", "f1"}
 
 
+def test_move_shorthand_is_case_insensitive_and_may_omit_effect_markers() -> None:
+    session = Session()
+    session.load_fen("r1bqkbnr/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4")
+
+    moved = session.play("qf7")
+
+    assert moved.position.moves == ("h5f7",)
+    assert moved.status is PositionStatus.CHECKMATE
+
+
+@pytest.mark.parametrize("notation", ("Qf7+", "Qxf7+"))
+def test_move_shorthand_rejects_incorrect_supplied_effect_markers(notation: str) -> None:
+    session = Session()
+    before = session.load_fen("r1bqkbnr/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4")
+
+    with pytest.raises(SessionError, match="legal unambiguous"):
+        session.play(notation)
+
+    assert session.view().position == before.position
+
+
+def test_move_shorthand_keeps_canonical_pawn_priority_and_requires_promotion_piece() -> None:
+    session = Session()
+    session.load_fen("4k3/P7/8/8/8/8/1P1B4/4K3 w - - 0 1")
+
+    assert session.resolve_moves(("b4",)) == ("b2b4",)
+    with pytest.raises(SessionError, match="legal unambiguous"):
+        session.resolve_moves(("a8",))
+
+
+def test_move_shorthand_uses_original_token_for_pawn_bishop_capture_collision() -> None:
+    fen = "7k/8/8/8/2n5/1P1B4/8/K7 w - - 0 1"
+    session = Session()
+    session.load_fen(fen)
+    assert session.resolve_moves(("bxc4",)) == ("b3c4",)
+    assert session.resolve_moves(("Bxc4",)) == ("d3c4",)
+
+    for shorthand in ("bc4", "bXC4"):
+        with pytest.raises(SessionError, match="unambiguous"):
+            session.resolve_moves((shorthand,))
+
+
 def test_unavailable_navigation_is_actionable() -> None:
     session = Session()
     session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")

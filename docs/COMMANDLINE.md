@@ -174,8 +174,21 @@ session unchanged.
 FEN input requires all six fields, canonical decimal move counters, coherent
 castling and en-passant state, one king per color, and a valid standard-chess
 position under the documented composed-position rules. PGN input requires
-well-formed tags and variations, legal canonical SAN, and one terminating result
-marker per game. Import errors identify what must be corrected before reloading.
+well-formed tags and variations, legal moves, and one terminating result marker
+per game. Import errors identify what must be corrected before reloading.
+
+PGN movetext and typed `move`, `compare`, and `probe move` share a shorthand
+contract. Canonical SAN is accepted directly; otherwise case-insensitive SAN may
+omit capture (`x`) and check/mate (`+`, `#`) markers when it identifies exactly
+one legal move. For example, `qg7` can resolve to `Qxg7#`. Supplied effect markers
+must be correct. Required source disambiguation and the promotion piece cannot
+be guessed. Ambiguous shorthand is rejected; use canonical SAN or, in typed
+commands, UCI. Exact canonical SAN takes precedence to preserve pawn/bishop
+notation that would collide if case were discarded.
+
+Accepted shorthand is represented as canonical SAN in the in-memory game and
+analysis. This infers move effects from the board; it does not repair malformed
+PGN structure, illegal moves, or FEN fields, and never rewrites the imported file.
 
 The session accepts at most 1,000 games, 100,000 total move nodes, and variation
 depth 64. Positions above 32 occupied squares remain navigable and inspectable;

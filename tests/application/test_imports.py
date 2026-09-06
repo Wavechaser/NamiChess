@@ -50,7 +50,6 @@ def test_accepts_check_suffix_and_comments_after_result() -> None:
         ("1. e4 (1. d4+ d5) e5 *", "noncanonical SAN"),
         ("1. e4 (1. d4# d5) e5 *", "noncanonical SAN"),
         ("1. e4 (1. d2d4 d5) e5 *", "noncanonical SAN"),
-        ("1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7 1-0", "noncanonical SAN"),
     ],
 )
 def test_rejects_noncanonical_san_in_mainline_and_variations(pgn: str, problem: str) -> None:
@@ -70,3 +69,44 @@ def test_accepts_canonical_check_mate_castle_and_promotion_san() -> None:
     assert mate.games[0].end().board().is_checkmate()
     assert castle.games[0].end().board().king(chess.WHITE) == chess.G1
     assert promotion.games[0].end().board().piece_at(chess.A8).symbol() == "Q"
+
+
+def test_import_normalizes_case_insensitive_shorthand_to_canonical_san() -> None:
+    document = import_pgn_text("1. E4 e5 2. bc4 nc6 3. qh5 nf6 4. QF7 1-0")
+
+    game = document.games[0]
+    assert game.end().board().is_checkmate()
+    assert str(game.mainline()).endswith("4. Qxf7#")
+
+
+def test_import_accepts_mixed_case_castling_capture_and_promotion() -> None:
+    castle = import_pgn_text("1. E4 E5 2. NF3 NC6 3. BC4 BC5 4. O-o *")
+    promotion = import_pgn_text(
+        '[SetUp "1"]\n[FEN "k7/4P3/8/8/8/8/8/7K w - - 0 1"]\n\n1. E8=q *'
+    )
+    capture = import_pgn_text("1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. QXF7# 1-0")
+
+    assert castle.games[0].end().board().king(chess.WHITE) == chess.G1
+    assert promotion.games[0].end().board().piece_at(chess.E8).symbol() == "Q"
+    assert capture.games[0].end().board().is_checkmate()
+
+
+def test_import_uses_original_token_for_pawn_bishop_capture_collision() -> None:
+    headers = '[SetUp "1"]\n[FEN "7k/8/8/8/2n5/1P1B4/8/K7 w - - 0 1"]\n\n'
+
+    assert import_pgn_text(headers + "1. bxc4 *").games[0].end().move.uci() == "b3c4"
+    assert import_pgn_text(headers + "1. Bxc4 *").games[0].end().move.uci() == "d3c4"
+    for shorthand in ("bc4", "bXC4"):
+        with pytest.raises(ImportError, match="illegal san"):
+            import_pgn_text(headers + f"1. {shorthand} *")
+
+
+def test_import_does_not_skip_an_illegal_lowercase_piece_prefix() -> None:
+    with pytest.raises(ImportError, match="illegal san"):
+        import_pgn_text("1. qe4 *")
+
+
+@pytest.mark.parametrize("move", ("Qf7+", "Qxf7+"))
+def test_import_rejects_incorrect_supplied_effect_markers(move: str) -> None:
+    with pytest.raises(ImportError, match="noncanonical SAN"):
+        import_pgn_text(f"1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. {move} 1-0")

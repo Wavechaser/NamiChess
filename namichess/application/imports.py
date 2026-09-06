@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 import io
 import re
 
 import chess.pgn
 
+from namichess.domain.notation import relaxed_san_matches, resolve_legal_move
 from namichess.domain.validation import PositionValidationError, parse_fen
 
 MAX_GAMES = 1_000
@@ -32,9 +34,10 @@ class _ParseBudget:
 
 
 class _StrictBuilder(chess.pgn.GameBuilder):
-    def __init__(self, budget: _ParseBudget) -> None:
+    def __init__(self, budget: _ParseBudget, original_moves: deque[str]) -> None:
         super().__init__()
         self._budget = budget
+        self._original_moves = original_moves
         self.sans: list[str] = []
 
     def handle_error(self, error: Exception) -> None:
@@ -65,8 +68,36 @@ class _StrictBuilder(chess.pgn.GameBuilder):
         self.sans.append(board.san(move))
         return super().visit_move(board, move)
 
+    def parse_san(self, board: chess.Board, san: str) -> chess.Move:
+        original = self._original_moves.popleft() if self._original_moves else san
+        if san in {"--", "Z0", "0000", "@@@@", "*"}:
+            return board.parse_san(san)
+        try:
+            return resolve_legal_move(board, original)
+        except ValueError as exc:
+            if original.endswith(("+", "#")):
+                try:
+                    return resolve_legal_move(board, original[:-1])
+                except ValueError:
+                    pass
+            raise ValueError(f"illegal san: {original!r}") from exc
+
 
 _MOVE_NUMBER = re.compile(r"\d+\.(?:\.\.)?")
+_RELAXED_MOVETEXT_REGEX = re.compile(
+    r"""
+    (
+        [NBKRQnbkrq]?[A-Ha-h]?[1-8]?[\-xX]?[A-Ha-h][1-8](?:=?[nbrqkNBRQK])?
+        |[PNBRQKpnbrqk]?@[A-Ha-h][1-8]
+        |--|Z0|0000|@@@@
+        |[Oo0]-[Oo0](?:-[Oo0])?
+    )
+    |(\{.*)|(;.*)|(\$[0-9]+)|(\()|(\))
+    |(\*|1-0|0-1|1/2-1/2)|([\?!]{1,2})
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+_PAWN_SAN = re.compile(r"[a-h](?:x[a-h])?[1-8](?:=?[nbrqk])?")
 
 
 def _location(text: str, offset: int) -> tuple[int, int]:
@@ -147,7 +178,7 @@ def _validate_tokens(segment: str, game_number: int, expected_sans: tuple[str, .
                 raise _problem(game_number, segment, offset, "movetext follows the result marker")
             offset = number.end()
             continue
-        token_match = chess.pgn.MOVETEXT_REGEX.match(text, offset)
+        token_match = _RELAXED_MOVETEXT_REGEX.match(text, offset)
         if not token_match:
             end = offset
             while end < len(text) and not text[end].isspace():
@@ -186,7 +217,7 @@ def _validate_tokens(segment: str, game_number: int, expected_sans: tuple[str, .
             if san_index >= len(expected_sans):
                 raise _problem(game_number, segment, offset, f"unrecognized SAN {actual_san!r}")
             expected_san = expected_sans[san_index]
-            if actual_san != expected_san:
+            if not relaxed_san_matches(actual_san, expected_san):
                 raise _problem(
                     game_number,
                     segment,
@@ -206,13 +237,87 @@ def _validate_tokens(segment: str, game_number: int, expected_sans: tuple[str, .
     return result
 
 
+def _normalize_move_tokens(text: str) -> str:
+    masked = _mask_non_movetext(text)
+    normalized = list(text)
+    for match in _RELAXED_MOVETEXT_REGEX.finditer(masked):
+        token = match.group(0)
+        projected = _project_move_token(token)
+        if projected is not None:
+            normalized[match.start():match.end()] = projected
+    return "".join(normalized)
+
+
+def _mask_non_movetext(text: str) -> str:
+    masked = list(text)
+    in_comment = False
+    offset = 0
+    for raw_line in text.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        if not in_comment and (line.lstrip().startswith("[") or line.startswith("%")):
+            masked[offset:offset + len(line)] = " " * len(line)
+            offset += len(raw_line)
+            continue
+        for index, character in enumerate(line):
+            absolute = offset + index
+            if in_comment:
+                masked[absolute] = " "
+                if character == "}":
+                    in_comment = False
+            elif character == "{":
+                in_comment = True
+                masked[absolute] = " "
+            elif character == ";":
+                masked[absolute:offset + len(line)] = " " * (len(line) - index)
+                break
+        offset += len(raw_line)
+    return "".join(masked)
+
+
+def _project_move_token(token: str) -> str | None:
+    if not token or token in {"(", ")", "*", "1-0", "0-1", "1/2-1/2"}:
+        return None
+    if token.startswith(("$", "?", "!", "{", ";")):
+        return None
+    lowered = token.lower()
+    if lowered in {"o-o", "0-0"}:
+        return "O-O"
+    if lowered in {"o-o-o", "0-0-0"}:
+        return "O-O-O"
+    if _PAWN_SAN.fullmatch(lowered):
+        return lowered
+    return token[0].upper() + lowered[1:]
+
+
+def _original_move_tokens(text: str) -> deque[str]:
+    masked = _mask_non_movetext(text)
+    moves: deque[str] = deque()
+    depth = 0
+    for match in _RELAXED_MOVETEXT_REGEX.finditer(masked):
+        token = match.group(0)
+        if token == "(":
+            depth += 1
+        elif token == ")":
+            depth = max(0, depth - 1)
+        elif token in {"1-0", "0-1", "1/2-1/2", "*"} and not depth:
+            continue
+        elif _project_move_token(token) is not None:
+            end = match.end()
+            if end < len(text) and text[end] in "+#":
+                token += text[end]
+            moves.append(token)
+    return moves
+
+
 def import_pgn_text(text: str) -> ImportedDocument:
-    handle = io.StringIO(text.lstrip("\ufeff"))
+    source = text.lstrip("\ufeff")
+    handle = io.StringIO(_normalize_move_tokens(source))
+    original_moves = _original_move_tokens(source)
     games: list[chess.pgn.Game] = []
     budget = _ParseBudget()
     while True:
         start = handle.tell()
-        builder = _StrictBuilder(budget)
+        builder = _StrictBuilder(budget, original_moves)
         try:
             game = chess.pgn.read_game(handle, Visitor=lambda: builder)
         except (ValueError, ImportError) as exc:

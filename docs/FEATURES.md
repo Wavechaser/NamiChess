@@ -192,9 +192,11 @@ engine line.
 
 ## Chess files and saved data
 
-- PGN import requires canonical standard SAN, including accurate check and mate
-  suffixes. Invalid notation is rejected with the expected spelling and location;
-  interactive trial moves continue to accept legal SAN or UCI.
+- PGN movetext and typed moves accept canonical SAN or unique case-insensitive
+  shorthand with omitted capture/check/mate effects. Supplied effects must be
+  accurate; ambiguity, unspecified promotions, illegal moves, and malformed
+  PGN/FEN remain errors. In-memory output uses canonical SAN; typed commands
+  additionally accept UCI. See the [notation contract](COMMANDLINE.md#input-and-file-rules).
 
 - Import and parse one or more games from PGN, including headers, moves, and
   variations needed to navigate positions.
