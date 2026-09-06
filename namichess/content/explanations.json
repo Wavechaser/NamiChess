@@ -16,6 +16,7 @@
   "cli.latent_ray_removed": "Latent slider ray removed:",
   "cli.pin_added": "Absolute pin added:",
   "cli.pin_removed": "Absolute pin removed:",
+  "cli.move_account_omitted": "{count} more move consequence(s); use changes for full raw details.",
   "assessment.move_safety": "Local move assessment: {conclusion}; replies {examined}/{total}, unresolved {unresolved}.",
   "assessment.trapping": "Local exit assessment: {conclusion}; exits {examined}/{total}, unresolved {unresolved}.",
   "assessment.overload": "Local defensive-duty assessment: {conclusion}; moves {examined}/{total}, unresolved {unresolved}.",

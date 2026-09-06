@@ -264,7 +264,7 @@ def _derive(delta: MoveDelta) -> tuple[MoveConsequence, ...]:
     for index, contact in enumerate(delta.contacts_removed):
         relationship = (contact.controller, contact.subject, contact.kind)
         if (
-            index in consumed_removed_contacts or contact.subject == captured
+            index in consumed_removed_contacts or contact.subject == captured or contact.controller == captured
             or relationship in added_relationships
         ):
             continue

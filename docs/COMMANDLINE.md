@@ -77,7 +77,7 @@ decode output as UTF-8.
 | `fen [--orientation <white\|black\|turn>] <six-field FEN>` | Load one root-only composed or ordinary standard-chess position. |
 | `games` | List loaded games and mark the selected game. |
 | `game <n>` | Select the one-based game and its final mainline node. |
-| `board` | Show the ASCII board, coordinates, turn, terminal/draw state, latest current-revision analysis state, and the prior move change when available. |
+| `board` | Show the ASCII board, coordinates, turn, terminal/draw state, latest current-revision analysis state, and a compact connected account of the prior move when available. |
 | `flip` | Reverse this CLI's board display without changing the position, analysis request, revision, or saved default. |
 | `orientation` | Show the current local orientation and the saved default. |
 | `orientation <white\|black>` | Set this CLI's current orientation without saving it. |
@@ -91,7 +91,7 @@ decode output as UTF-8.
 | `variation <n>` | Select a one-based child variation. |
 | `move <SAN-or-UCI>` | Add or reuse an in-memory legal trial child and select it. The imported file is unchanged. |
 | `inspect <square>` | Show the occupant, geometric contacts and rays, legal access for the actual side to move, absolute pins, and available local assessments involving that piece. |
-| `changes` | Show complete identity-bearing relationship changes from the previous move. |
+| `changes` | Show the connected account and complete identity-bearing raw relationship changes from the previous move. |
 | `analyze` | Restart bounded analysis of the selected position. This also retries engine startup after failure. |
 | `probe move <SAN-or-UCI>` | Resolve a legal move and start focused analysis without moving the cursor. |
 | `probe piece <square>` | Resolve the side-to-move piece and analyze its legal exits without moving the cursor. |
@@ -201,6 +201,16 @@ lines. Completion reports recorded root probes and their known depth or depth
 range; survey lines and unfinished roots are excluded. Coverage still reports
 interruption. Compact numeric scores and material deltas omit repeated
 perspective labels; their documented White-positive convention is unchanged.
+
+Board and candidate-line previews lead the previous-move account with SAN and
+always retain direct capture, promotion, castling, and check effects. They then
+show the bounded connected consequences supplied by the shared application
+view, such as a newly unguarded piece or an opened slider line. When the shared
+account omits additional consequences, compact output reports the count and
+points to `changes` for full raw details; `changes` retains the complete raw
+relationship categories. These statements describe recorded move effects and geometric
+relationships without asserting tactical wins, intent, or the identity of a
+discovered checker.
 
 A completed result shows its state and coverage, at most three priority facts,
 and a candidate table. Priority favors current check, direct or engine-reported

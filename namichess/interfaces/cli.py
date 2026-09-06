@@ -19,9 +19,10 @@ from prompt_toolkit.output.defaults import create_output
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from namichess.application.imports import ImportError as ChessImportError
+from namichess.analysis.consequences import ConsequenceKind, MoveAccount, resolve_raw_fact
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult
 from namichess.analysis.evidence import Explanation
-from namichess.analysis.static import MoveDelta
+from namichess.analysis.static import ContactKind, MoveDelta, PieceContact
 from namichess.application.session import Session, SessionError
 from namichess.application.preview import CandidateLinePreview, PreviewError, preview_candidate_line
 from namichess.application.views import SessionView
@@ -62,7 +63,7 @@ def render_board(
     if claims:
         lines.append("Claimable: " + ", ".join(claims))
     if view.previous_move is not None:
-        lines.append(_delta_text(view.previous_move, catalog=catalog))
+        lines.append(_delta_text(view.previous_move, account=view.move_account, catalog=catalog))
     if view.analysis is not None:
         lines.extend(_analysis_summary(view.analysis))
     return "\n".join(lines)
@@ -218,18 +219,18 @@ def _explanation_priority(explanation: Explanation) -> tuple[int, str]:
 def _delta_text(
     delta: MoveDelta,
     *,
+    account: MoveAccount | None = None,
     catalog: ExplanationCatalog | None = None,
     detailed: bool = False,
 ) -> str:
     catalog = catalog or _load_catalog()
     moved = delta.moved
     parts = [
-        f"Changed: {delta.san} — {moved.after.color} {moved.after.piece_type} "
-        f"{moved.before.square}→{moved.after.square}"
+        f"{delta.san}: {moved.before.piece_type} {moved.before.square}→{moved.after.square}"
     ]
     if delta.captured is not None:
         captured = delta.captured
-        parts.append(f"captured {captured.color} {captured.piece_type} on {captured.square}")
+        parts.append(f"captured {captured.piece_type} on {captured.square}")
     if delta.castling_rook is not None:
         rook = delta.castling_rook
         parts.append(f"rook {rook.before.square}→{rook.after.square}")
@@ -237,10 +238,72 @@ def _delta_text(
         parts.append(f"promoted to {moved.after.piece_type}")
     if delta.gives_check:
         parts.append("gives check")
-    facts = _relationship_changes(delta, catalog)
+    facts = _account_changes(delta, account)
+    if account is not None and account.omitted_count:
+        facts = (*facts, _catalog_text(
+            catalog, "cli.move_account_omitted", (("count", account.omitted_count),),
+        ))
     if detailed:
-        return "\n".join(("; ".join(parts), *facts))
-    return "; ".join((*parts, *facts[:3]))
+        raw = _relationship_changes(delta, catalog)
+        return "\n".join(("; ".join(parts), *facts, *(('Raw changes:', *raw) if raw else ())))
+    return "; ".join((*parts, *facts))
+
+
+def _account_changes(delta: MoveDelta, account: MoveAccount | None) -> tuple[str, ...]:
+    if account is None:
+        return ()
+    direct = {
+        ConsequenceKind.CAPTURE, ConsequenceKind.PROMOTION,
+        ConsequenceKind.CASTLING, ConsequenceKind.CHECK,
+    }
+    changes = []
+    for event in account.consequences:
+        if event.kind in direct:
+            continue
+        subject = _account_piece_label(delta, event.subject)
+        related = _account_piece_label(delta, event.related_piece)
+        actor = _account_piece_label(delta, event.actor)
+        relationship = _account_relationship(delta, event)
+        if event.kind is ConsequenceKind.LOST_DEFENSE:
+            changes.append(f"{subject} is now unguarded")
+        elif event.kind is ConsequenceKind.PINNED:
+            changes.append(f"{subject} is pinned to {related}")
+        elif event.kind is ConsequenceKind.UNPINNED:
+            changes.append(f"{subject} is no longer pinned to {related}")
+        elif event.kind is ConsequenceKind.OPENED_LINE:
+            changes.append(f"opens {actor}'s line {relationship} {subject}")
+        elif event.kind is ConsequenceKind.BLOCKED_LINE:
+            changes.append(f"blocks {actor}'s line {relationship} {subject}")
+        elif event.kind is ConsequenceKind.GAINED_CONTROL:
+            changes.append(
+                f"{actor} now {relationship} {subject}"
+                if event.subject is not None else f"{actor} now controls {event.target.square}"
+            )
+        elif event.kind is ConsequenceKind.LOST_CONTROL:
+            changes.append(f"{actor} no longer {relationship} {subject}")
+    return tuple(changes)
+
+
+def _account_piece_label(delta: MoveDelta, piece_id) -> str:
+    if piece_id is None:
+        return "piece"
+    placement = next(
+        (item for item in (*delta.after_pieces, *delta.before_pieces) if item.piece_id == piece_id),
+        None,
+    )
+    return f"{placement.piece_type} {placement.square}" if placement is not None else "piece"
+
+
+def _account_relationship(delta: MoveDelta, event) -> str:
+    contact = next((
+        fact for reference in event.supporting_facts
+        if isinstance((fact := resolve_raw_fact(delta, reference)), PieceContact)
+    ), None)
+    if contact is None:
+        return "controls"
+    if event.kind in (ConsequenceKind.OPENED_LINE, ConsequenceKind.BLOCKED_LINE):
+        return "attack on" if contact.kind is ContactKind.ATTACK else "defense of"
+    return "attacks" if contact.kind is ContactKind.ATTACK else "defends"
 
 
 def _relationship_changes(delta: MoveDelta, catalog: ExplanationCatalog | None) -> tuple[str, ...]:
@@ -459,7 +522,7 @@ def _piece_label(piece: PiecePlacement) -> str:
 
 def render_changes(view: SessionView, catalog: ExplanationCatalog | None = None) -> str:
     return (
-        _delta_text(view.previous_move, catalog=catalog, detailed=True)
+        _delta_text(view.previous_move, account=view.move_account, catalog=catalog, detailed=True)
         if view.previous_move is not None
         else _catalog_text(catalog, "cli.no_previous_move")
     )
@@ -473,15 +536,19 @@ def render_line_preview(
     lines = list(_oriented_board_rows(preview.board_rows, orientation))
     lines.extend([
         f"Candidate line: {preview.candidate.san} ({preview.candidate.uci}), ply {preview.ply}",
-        _delta_text(preview.previous_move, catalog=catalog) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root"),
+        _delta_text(preview.previous_move, account=preview.move_account, catalog=catalog) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root"),
     ])
     return "\n".join(lines)
 
 
-def _catalog_text(catalog: ExplanationCatalog | None, catalog_id: str) -> str:
+def _catalog_text(
+    catalog: ExplanationCatalog | None,
+    catalog_id: str,
+    values: tuple[tuple[str, str | int | bool], ...] = (),
+) -> str:
     if catalog is not None:
-        return catalog.render(Explanation("", catalog_id))
-    return _load_catalog().render(Explanation("", catalog_id))
+        return catalog.render(Explanation("", catalog_id, values))
+    return _load_catalog().render(Explanation("", catalog_id, values))
 
 
 def _load_catalog() -> ExplanationCatalog:

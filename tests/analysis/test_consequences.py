@@ -108,6 +108,22 @@ def test_captured_defender_can_leave_a_surviving_piece_undefended() -> None:
     assert all(resolve_raw_fact(delta, reference) is not None for reference in lost.supporting_facts)
 
 
+def test_captured_controller_is_not_repeated_as_residual_lost_control_but_raw_contact_remains() -> None:
+    delta, result = account("7k/8/8/1p1R4/2b5/3B4/8/K7 w - - 0 1", "d3c4")
+    assert delta.captured is not None
+    captured = delta.captured.piece_id
+
+    assert any(contact.controller == captured for contact in delta.contacts_removed)
+    assert all(
+        not (event.kind is ConsequenceKind.LOST_CONTROL and event.actor == captured)
+        for event in result.consequences
+    )
+    assert any(
+        event.kind is ConsequenceKind.LOST_DEFENSE and event.actor == captured
+        for event in result.consequences
+    )
+
+
 def test_same_relationship_after_mover_coordinate_change_is_not_lost_defense() -> None:
     _, result = account("7k/8/8/8/8/8/8/R1R4K w - - 0 1", "c1d1")
     assert ConsequenceKind.LOST_DEFENSE not in {item.kind for item in result.consequences}

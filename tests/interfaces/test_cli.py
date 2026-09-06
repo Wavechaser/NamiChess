@@ -16,6 +16,7 @@ from namichess.application.session import Session, SessionError
 from namichess.application.preview import preview_candidate_line
 from namichess.application.imports import ImportError as ChessImportError
 from namichess.analysis.engine import EngineCandidate, EngineProgress, EngineReport, EngineScore, EngineStatus, ScoreBound
+from namichess.analysis.consequences import ConsequenceKind, MoveAccount, MoveConsequence
 from namichess.analysis.evidence import Evidence, Explanation, LineConsequence
 from namichess.analysis.assessments import (
     AssessmentConclusion, AssessmentCoverage, CoverageUnit, EvidenceKind,
@@ -65,7 +66,7 @@ def test_cli_fen_board_move_and_navigation_transcript() -> None:
     assert not done
     output, _ = execute(session, "move Ka2")
     assert "Turn: black" in output
-    assert "Changed: Ka2 — white king a1→a2" in output
+    assert "Ka2: king a1→a2" in output
     output, _ = execute(session, "back")
     assert "Turn: white" in output
 
@@ -256,6 +257,96 @@ def test_capture_promotion_distinguishes_a_removed_piece_from_new_defence() -> N
     execute(session, "move bxa8=Q+")
     output, _ = execute(session, "changes")
     assert "Geometrically undefended before the move: a8 black rook" in output
+
+
+def test_quiet_move_uses_connected_account_and_keeps_raw_changes_in_explicit_details() -> None:
+    session = Session()
+    session.load_fen(chess.STARTING_FEN)
+    compact, _ = execute(session, "move e4")
+    detailed, _ = execute(session, "changes")
+
+    assert "pawn e4 is now unguarded" in compact
+    assert "Contact removed:" not in compact
+    assert "Raw changes:" in detailed
+    assert "Contact removed: d1 white queen defends e2 white pawn" in detailed
+
+
+@pytest.mark.parametrize(
+    ("fen", "move", "effects"),
+    (
+        ("7k/8/8/3p4/4P3/8/8/K7 w - - 0 1", "exd5", ("captured pawn on d5",)),
+        ("K7/8/8/8/4pP2/8/8/7k b - f3 0 1", "exf3", ("captured pawn on f4",)),
+        ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "O-O", ("rook h1→f1",)),
+        ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", "O-O-O", ("rook a8→d8",)),
+        ("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a8=Q+", ("promoted to queen", "gives check")),
+    ),
+)
+def test_compact_account_keeps_mandatory_direct_move_effects(fen, move, effects) -> None:
+    session = Session()
+    session.load_fen(fen)
+
+    output, _ = execute(session, f"move {move}")
+
+    for effect in effects:
+        assert effect in output
+
+
+@pytest.mark.parametrize(
+    ("fen", "move", "actor"),
+    (
+        ("r6k/8/8/8/8/8/B7/R6K w - - 0 1", "Bb3", "rook a8"),
+        ("r6k/b7/8/8/8/8/8/R6K b - - 0 1", "Bb6", "rook a1"),
+    ),
+)
+def test_opened_line_account_is_mirrored_without_assigning_the_mover_as_actor(fen, move, actor) -> None:
+    session = Session()
+    session.load_fen(fen)
+
+    output, _ = execute(session, f"move {move}")
+
+    assert f"opens {actor}'s line attack on" in output
+
+
+def test_direct_effects_remain_visible_when_three_structural_account_slots_are_saturated() -> None:
+    session = Session()
+    session.load_fen("r3k3/1P6/8/8/8/8/8/4K3 w - - 0 1")
+    view = session.play("bxa8=Q+")
+    delta = view.previous_move
+    assert delta is not None
+    queen = delta.moved.piece
+    king = next(item.piece_id for item in delta.after_pieces if item.piece_type == "king" and item.color == "black")
+    account = MoveAccount(
+        delta.before, delta.after, delta.uci,
+        (
+            MoveConsequence(ConsequenceKind.LOST_DEFENSE, None, queen, None, None, None, ()),
+            MoveConsequence(ConsequenceKind.PINNED, None, queen, None, None, king, ()),
+            MoveConsequence(
+                ConsequenceKind.GAINED_CONTROL, queen, None, None,
+                SquareRef(delta.after, "b8"), None, (),
+            ),
+        ),
+        2,
+    )
+
+    output = render_board(dataclasses.replace(view, move_account=account), catalog=CATALOG)
+
+    assert "captured rook on a8" in output
+    assert "promoted to queen" in output
+    assert "gives check" in output
+    assert "queen a8 is now unguarded" in output
+    assert "queen a8 is pinned to king e8" in output
+    assert "queen a8 now controls b8" in output
+    assert "2 more move consequence(s); use changes for full raw details" in output
+
+
+def test_discovered_check_does_not_name_the_moving_bishop_as_checker() -> None:
+    session = Session()
+    session.load_fen("4k3/8/8/8/8/8/4B3/4R2K w - - 0 1")
+
+    output, _ = execute(session, "move Bc4")
+
+    assert "gives check" in output
+    assert "bishop gives check" not in output
 
 
 def test_cli_line_supports_ply_zero_and_renders_the_local_orientation() -> None:
@@ -702,4 +793,4 @@ def test_native_process_reconfigures_cp1252_standard_streams_to_utf8() -> None:
     )
     assert completed.returncode == 0
     output = completed.stdout.decode("utf-8")
-    assert "Changed: Ka2 — white king a1→a2" in output
+    assert "Ka2: king a1→a2" in output
