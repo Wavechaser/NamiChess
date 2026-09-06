@@ -4,6 +4,12 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 scope discussion — 2026-09-06
+
+- Recorded proposed continuity-first analysis, bounded local tactical assessments,
+  promotion coverage, and board orientation behavior in the feature roadmap.
+  These are planned features, not delivered runtime changes.
+
 ### M1 documentation archive — 2026-09-06
 
 - Retired the accepted M1 implementation plan and combined invariant review to

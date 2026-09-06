@@ -27,6 +27,40 @@ promotion, castling-rook, attack, slider-ray, pin, and check changes.
 The following sections describe the wider product roadmap; only behavior named
 above and in the M1 plan is implemented in the current milestone.
 
+## M2 direction — proposed scope
+
+M2 centers on continuity: explain how each legal move changes piece relationships
+and what those changes enable. This section records the proposed next milestone,
+not implemented behavior or a finalized implementation plan.
+
+- Extend the shared before/after facts with newly attacked targets, gained and
+  lost geometric defenders, cleared and blocked rays, changed blockers, and
+  changed absolute pins. Track persistent piece identities through captures,
+  castling, en passant, and promotion. Distinguish geometric defence from legal
+  recapture and tactical availability.
+- Add latent slider rays and local exchange evaluation (SEE), with explicit
+  supported cases and bounded work. SEE supplies exchange evidence, not overall
+  move soundness or a reason to discard sacrifices.
+- Examine checks, captures, promotions, and direct attacks in bounded legal
+  continuations. Recompute relationships after each ply, including counterchecks
+  and intermediate moves; selective forcing search is not a complete defence
+  search. Quiet responses and unsearched alternatives remain explicit gaps.
+- Build local safety, trapping, and overload assessments on those facts and
+  continuations. Distinguish a witnessed refutation from no refutation found.
+  Report escape coverage before claiming no viable escape, and never equate
+  restricted mobility with a forced material win. Multiple defensive contacts
+  only suggest overload; demonstrate conflicting duties through legal play.
+- Retain the source, target, preconditions, before/after relationships, evidence,
+  and search coverage for each assessment. These are the basis for later broader
+  threat analysis; comprehensive bilateral threat classification remains deferred.
+- Expose the same explanations in CLI and a thin interactive board, with linked
+  highlights, candidate previews, evidence replay, and revision-safe updates.
+
+Promotion already retains piece identity, updates piece type and geometric facts,
+and appears in move deltas and line material evidence. M2 should expand regression
+coverage for underpromotion and capture-promotion effects and provide a GUI choice
+among all four legal promotion types.
+
 ## Product aim
 
 NamiChess is a local, rating-agnostic chess-analysis and training tool. It
@@ -92,6 +126,12 @@ engine line.
 
 ## Board appearance
 
+- Planned for M2: choose White or Black at the bottom on import, optionally resolve
+  orientation from the imported position's side to move, and flip during analysis.
+  Resolve automatic orientation once on import; navigation does not flip the board
+  after every move. Orientation is presentation state and does not change canonical
+  squares, score perspective, position revision, or analysis requests. A GUI renders
+  the transform locally; a CLI can own the same preference in its display adapter.
 - Use the bundled MPChess SVG set by default.
 - Let users import and select a custom SVG piece set locally.
 - Require every theme to provide the same twelve white/black piece assets. Built-in
