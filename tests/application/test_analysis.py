@@ -7,11 +7,12 @@ from pathlib import Path
 
 import pytest
 import chess
+import namichess.application.analysis as analysis_module
 
 from namichess.analysis.engine import EngineCandidate, EngineReport, EngineScore, EngineStatus, ScoreBound, StockfishAdapter
 from namichess.analysis.evidence import line_consequences
-from namichess.analysis.static import move_delta
-from namichess.application.analysis import AnalysisController, AnalysisPolicy, AnalysisState, _current_tactics, _pv_deltas
+from namichess.analysis.static import move_delta, position_facts
+from namichess.application.analysis import AnalysisController, AnalysisPolicy, AnalysisState, ProbeSubject, _current_tactics, _pv_deltas
 from namichess.domain.models import PieceId, PositionContext
 from namichess.domain.validation import parse_fen
 
@@ -132,6 +133,174 @@ def test_explicit_move_outside_survey_is_included_and_duplicates_are_unique() ->
         assert result is not None
         assert [item.uci for item in result.candidates] == ["a2a3", "e2e4", "g1f3"]
         assert result.coverage.requested == 3
+    asyncio.run(exercise())
+
+
+def test_focused_quiet_move_is_locally_explored_and_engine_verified() -> None:
+    async def exercise():
+        engine = FakeEngine()
+        controller = AnalysisController(engine)
+        controller.submit_probe(context(chess.STARTING_FEN), 1, ProbeSubject.for_move("a2a3"))
+        result = await controller.wait()
+        assert result is not None and result.local is not None
+        assert tuple(root.root_uci for root in result.local.roots) == ("a2a3",)
+        assert any(call.root_moves == ("a2a3",) for call in engine.calls)
+        assert any(item.uci == "a2a3" for item in result.candidates)
+
+    asyncio.run(exercise())
+
+
+def test_negative_local_exchange_does_not_remove_engine_candidate() -> None:
+    class CaptureEngine(FakeEngine):
+        async def analyze(self, position, policy, *, progress=None):
+            self.calls.append(policy)
+            return EngineReport(EngineStatus.COMPLETED, (candidate("e4d5", 40),))
+
+    async def exercise():
+        controller = AnalysisController(CaptureEngine())
+        controller.submit_probe(
+            context("7k/8/2p5/3p4/4Q3/8/8/4K3 w - - 0 1"),
+            1,
+            ProbeSubject.for_move("e4d5"),
+        )
+        result = await controller.wait()
+        assert result is not None and result.local is not None
+        exchange = result.local.roots[0].exchange
+        assert exchange is not None and exchange.material_result is not None
+        assert exchange.material_result < 0
+        assert [item.uci for item in result.candidates] == ["e4d5"]
+
+    asyncio.run(exercise())
+
+
+def test_piece_probe_explores_all_exits_but_engine_verifies_at_most_seven() -> None:
+    class RookEngine(FakeEngine):
+        async def analyze(self, position, policy, *, progress=None):
+            self.calls.append(policy)
+            root = policy.root_moves[0] if policy.root_moves else "a1a2"
+            return EngineReport(EngineStatus.COMPLETED, (candidate(root, 10),))
+
+    async def exercise():
+        position = context("7k/8/8/8/8/8/8/R3K3 w - - 0 1")
+        rook = next(item.piece_id for item in position_facts(position).pieces if item.square == "a1")
+        engine = RookEngine()
+        controller = AnalysisController(engine)
+        controller.submit_probe(position, 1, ProbeSubject.for_piece(rook))
+        result = await controller.wait()
+        assert result is not None and result.local is not None
+        expected_exits = (
+            "a1a8", "a1a2", "a1a3", "a1a4", "a1a5",
+            "a1a6", "a1a7", "a1b1", "a1c1", "a1d1",
+        )
+        assert tuple(root.root_uci for root in result.local.roots) == expected_exits
+        verified = tuple(call.root_moves[0] for call in engine.calls if call.root_moves)
+        assert verified == expected_exits[:7]
+        assert all(chess.Move.from_uci(uci).from_square == chess.A1 for uci in verified)
+
+    asyncio.run(exercise())
+
+
+def test_engine_failure_preserves_completed_focused_local_evidence() -> None:
+    class Failed(FakeEngine):
+        async def analyze(self, position, policy, *, progress=None):
+            return EngineReport(EngineStatus.FAILED, message="failed")
+
+    async def exercise():
+        controller = AnalysisController(Failed())
+        controller.submit_probe(context(chess.STARTING_FEN), 1, ProbeSubject.for_move("a2a3"))
+        result = await controller.wait()
+        assert result is not None and result.state is AnalysisState.FAILED
+        assert result.local is not None and result.local.roots[0].root_uci == "a2a3"
+
+    asyncio.run(exercise())
+
+
+def test_replacement_interrupts_active_local_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    real_explore = analysis_module.explore_local
+    started = asyncio.Event()
+
+    async def controlled(*args, **kwargs):
+        if kwargs.get("request_id") == 1:
+            started.set()
+            while not kwargs["cancelled"]():
+                await asyncio.sleep(0)
+            raise asyncio.CancelledError
+        return await real_explore(*args, **kwargs)
+
+    monkeypatch.setattr(analysis_module, "explore_local", controlled)
+
+    async def exercise():
+        controller = AnalysisController(FakeEngine())
+        position = context(chess.STARTING_FEN)
+        controller.submit_probe(position, 1, ProbeSubject.for_move("a2a3"))
+        await started.wait()
+        controller.submit_probe(position, 2, ProbeSubject.for_move("a2a4"))
+        result = await controller.wait()
+        assert result is not None and result.revision == 2
+        assert result.subject == ProbeSubject.for_move("a2a4")
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("operation", ("cancel", "close"))
+def test_cancel_and_close_interrupt_active_local_probe(monkeypatch: pytest.MonkeyPatch, operation: str) -> None:
+    started = asyncio.Event()
+
+    async def controlled(*args, **kwargs):
+        started.set()
+        while not kwargs["cancelled"]():
+            await asyncio.sleep(0)
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(analysis_module, "explore_local", controlled)
+
+    async def exercise():
+        controller = AnalysisController(FakeEngine())
+        controller.submit_probe(context(chess.STARTING_FEN), 1, ProbeSubject.for_move("a2a3"))
+        await started.wait()
+        await getattr(controller, operation)()
+        assert controller.latest is not None
+        assert controller.latest.state is AnalysisState.CANCELED
+
+    asyncio.run(exercise())
+
+
+def test_ordinary_and_focused_budgets_remain_separate_and_immutable() -> None:
+    class Clock:
+        now = 0.0
+
+        def __call__(self):
+            return self.now
+
+    class AdvancingEngine(FakeEngine):
+        def __init__(self, clock):
+            super().__init__()
+            self.clock = clock
+
+        async def analyze(self, position, policy, *, progress=None):
+            report = await super().analyze(position, policy, progress=progress)
+            self.clock.now += policy.seconds
+            return report
+
+    async def exercise():
+        ordinary_clock = Clock()
+        ordinary_engine = AdvancingEngine(ordinary_clock)
+        ordinary = AnalysisController(ordinary_engine, monotonic=ordinary_clock)
+        ordinary.submit(context(chess.STARTING_FEN), 1)
+        ordinary_result = await ordinary.wait()
+        assert ordinary_result is not None
+        assert sum(call.seconds for call in ordinary_engine.calls) == pytest.approx(5.0)
+        assert ordinary_result.local_limits.seconds == 0.25
+
+        focused_clock = Clock()
+        focused_engine = AdvancingEngine(focused_clock)
+        focused = AnalysisController(focused_engine, monotonic=focused_clock)
+        focused.submit_probe(context(chess.STARTING_FEN), 1, ProbeSubject.for_move("a2a3"))
+        focused_result = await focused.wait()
+        assert focused_result is not None
+        assert sum(call.seconds for call in focused_engine.calls) == pytest.approx(15.0)
+        assert focused_result.local_limits.seconds == 1.0
+
     asyncio.run(exercise())
 
 

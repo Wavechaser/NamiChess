@@ -96,6 +96,38 @@ Unsupported and incomplete results have no material result. A negative completed
 result remains evidence; the evaluator has no candidate-selection call site and
 cannot discard an engine candidate.
 
+The bounded local explorer runs inside the existing application analysis job.
+It orders actual-side roots as checks, captures or promotions, new direct
+attacks, then UCI. A move probe explores its legal root; a piece probe explores
+all legal exits of that actual-side piece within the local budget. The
+application rejects illegal moves, absent pieces, opponent pieces, and stale
+supplied session views before changing controller state.
+
+Local search stops at four plies, 10,000 aggregate expanded positions, or its
+monotonic deadline. Nested exchange evaluation consumes the same node allowance
+through a narrow cooperative callback, so cancellation and the every-32-node
+yield interval cannot reset inside SEE. Ordinary analysis retains its
+five-second engine allowance and receives a separate 250 ms local allowance.
+Focused work has one fifteen-second aggregate allowance after engine preparation
+and caps its local portion at one second.
+
+`LocalExploration` records resolved limits, reached limit, omitted legal roots,
+and per-root reply evidence. Each root reports total and examined immediate
+replies, first and omitted replies, replayable witnessed lines, branch scope,
+termination reason, and optional root or reply exchange evidence. Complete
+immediate-reply counts establish only that those replies were visited. A deeper
+line is a selective example and never proves a forced continuation. Terminal
+mate is recorded as witnessed mate rather than a general refutation.
+
+`AnalysisResult` carries the immutable `ProbeSubject`, resolved `LocalLimits`,
+and optional `LocalExploration` beside engine candidates. The shared
+`analysis.continuations` helper constructs identity-preserving contexts for
+each witnessed ply; local evidence and engine PV evidence therefore recompute
+the same structural `MoveDelta` contract without asking `Session.view()` to
+search. The controller keeps one running and one pending request, and revision,
+replacement, cancellation, and close rules apply to engine and local work
+together.
+
 For M1, policy is fixed rather than user-configurable: one engine and thread,
 64 MiB hash, and five seconds per request. One second surveys up to five root
 candidates; remaining time is divided across focused root-move searches,

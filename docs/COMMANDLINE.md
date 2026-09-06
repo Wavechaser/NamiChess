@@ -106,14 +106,32 @@ favors White and negative favors Black. Survey and focused-probe evidence remain
 separate, including their scores and bounds.
 
 The analysis package also provides bounded target-square exchange evaluation for
-later local-search integration. It reports `completed`, `unsupported`, or
+integrated local exploration. It reports `completed`, `unsupported`, or
 `incomplete`; only a completed result has a material value. That value uses the
 requested White or Black perspective and 1/3/3/5/9 piece values, includes
 capture-promotion gain, and is accompanied by a legally replayable UCI line,
 node count, and limit metadata. The evaluator explores at most 4,096 positions
-under its caller's monotonic deadline and yields every 32 positions. It does not
-rank or remove candidates, and the current CLI does not yet render or serialize
-this evidence.
+under its caller's monotonic deadline and yields every 32 positions. When local
+exploration calls it, SEE consumes the enclosing 10,000-node allowance and
+cooperative yield schedule instead of resetting either limit. It does not rank
+or remove candidates.
+
+The interface-neutral application API accepts a typed focused move or piece
+`ProbeSubject`. `Session.request_probe` validates the selected revision and
+position, legal UCI move, or actual-side piece identity before submitting work.
+Its `AnalysisResult` exposes the subject, immutable resolved local limits, and
+typed local exploration evidence. Ordinary requests add at most 250 ms of local
+work to the existing five-second engine allowance. Focused requests use at most
+fifteen seconds after engine preparation, with local work capped at one second;
+both modes stop local work at depth four or 10,000 aggregate nodes.
+
+Per-root local coverage distinguishes visited immediate replies from omitted
+replies and records why each replayable branch stopped. A complete reply count
+does not turn a selective deeper line into exhaustive defence or a forced
+claim. Focused piece probes cover every legal exit locally within the budget,
+while restricted engine verification remains capped at seven roots. CLI probe
+commands and local-evidence rendering are not yet available; they belong to the
+pending integrated-interface checkpoint.
 
 Import orientation resolves in this order: command-level `--orientation`, the
 process-level option, then the saved default. `turn` resolves once from the

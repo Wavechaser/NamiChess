@@ -1,6 +1,6 @@
 # M2 Implementation Plan — Continuity and Local Tactical Understanding
 
-Status: active. M2.01 is committed; M2.02 and M2.03 have passed independent review; M2.04/M2.05 are in progress.
+Status: active. M2.01 through M2.05 are accepted; M2.06 review fixes and M2.07 integration are in progress.
 
 ## Main objectives
 
@@ -51,7 +51,7 @@ Static relationships remain usable without an engine. Local search belongs to th
 | M2.02 | Shared orientation defaults and local CLI flipping | M2.01 | Settings round trips and orientation invariance | complete |
 | M2.03 | Complete structural move continuity | M2.01 | Named mirrored relationship fixtures | complete |
 | M2.04 | Bounded, legality-aware local exchange evidence | M2.03 | Exchange fixtures and unsupported cases | complete |
-| M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | pending |
+| M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | complete |
 | M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | pending |
 | M2.07 | Integrated CLI explanations and GUI-ready views | M2.02, M2.06 | Shared-consumer and interactive CLI tests | pending |
 | M2.08 | Accepted end-to-end M2 delivery | M2.07 | Integration and adversarial sweep | pending |
@@ -73,6 +73,7 @@ This register is the completion denominator. New findings are recorded separatel
 | M2.05 | Independent reviewer `review_search` | Stale supplied view could submit old context; analysis and probes shared the defect | Central session revision/context validation closes it before comparison resolution or submission; baseline boundary fix committed separately |
 | M2.05 | Independent reviewer `review_search` | Piece-probe test counted engine roots without proving they were selected-piece exits | Exact move mapping now asserted; independent gate 84 passed, 2 skipped; no remaining blocker |
 | M2.05 | Coordinator | Shared continuation helper briefly introduced an analysis-to-application import cycle | Corrected ownership to analysis/continuations; no delayed-import workaround or additional framework |
+| M2.05 | Builder final engine gate | Full Stockfish-enabled suite: 259 passed in 32.48 seconds, no skips/failures | Accepted following independent 84-test focused review; stale submission fix is `8cc64c3` |
 
 Append substantive findings here with their checkpoint, independent source, direct evidence, and disposition. Similar consecutive findings must explicitly record whether they reveal an upstream design defect.
 
@@ -376,7 +377,7 @@ M2.08 is a separate gate, not a substitute for checkpoint-owned regressions. It 
 
 ## Resumption block
 
-- **Current checkpoint:** M2.05/M2.06. M2.01 committed as `98268b5`; M2.02 as `c6241a1`; M2.03 as `9bc2763`; M2.04 independently accepted.
+- **Current checkpoint:** M2.06/M2.07. M2.01 `98268b5`, M2.02 `c6241a1`, M2.03 `9bc2763`, M2.04 `56e73a2`; shared stale-view fix `8cc64c3`; M2.05 independently accepted with full engine gate.
 - **Completed evidence:** Baseline commit is `8b03c09`; pre-M2 baselines were 145 passed plus 10 skipped ordinarily and 155 passed with Stockfish in an isolated temporary directory. M2.01 focused serializer/CLI verification passed 21 tests after creating the missing workspace temp parent.
 - **Next action:** Complete orientation CLI integration and structural continuity verification; commit each independently with its tests, documentation, and fresh reviewer evidence.
 - **Established verification:** `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <fresh-temp-path>`; use `NAMICHESS_TEST_ENGINE` and the executable above for the final engine sweep.

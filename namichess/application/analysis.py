@@ -12,8 +12,10 @@ import chess
 
 from namichess.analysis.engine import EngineCandidate, EnginePolicy, EngineProgress, EngineReport, EngineScore, EngineStatus, MAX_ENGINE_PIECES, ScoreBound
 from namichess.analysis.evidence import Evidence, Explanation, line_consequences
+from namichess.analysis.local import LocalExploration, LocalLimits, explore_local
 from namichess.analysis.static import move_delta, position_facts
-from namichess.domain.models import PositionContext, PositionId, SquareRef
+from namichess.analysis.continuations import continuation_context
+from namichess.domain.models import PieceId, PositionContext, PositionId, SquareRef
 from namichess.domain.position import replay_position
 
 
@@ -24,6 +26,29 @@ class AnalysisPolicy:
     candidate_limit: int = 5
     comparison_limit: int = 2
     total_candidate_limit: int = 7
+    local: LocalLimits = LocalLimits()
+    focused_seconds: float = 15.0
+    focused_local: LocalLimits = LocalLimits(seconds=1.0)
+
+
+class ProbeKind(Enum):
+    MOVE = "move"
+    PIECE = "piece"
+
+
+@dataclass(frozen=True, slots=True)
+class ProbeSubject:
+    kind: ProbeKind
+    move: str | None = None
+    piece: PieceId | None = None
+
+    @classmethod
+    def for_move(cls, uci: str) -> ProbeSubject:
+        return cls(ProbeKind.MOVE, move=uci)
+
+    @classmethod
+    def for_piece(cls, piece: PieceId) -> ProbeSubject:
+        return cls(ProbeKind.PIECE, piece=piece)
 
 
 class AnalysisState(Enum):
@@ -70,6 +95,9 @@ class AnalysisResult:
     coverage: Coverage = Coverage(0, 0, 0, False)
     message: str | None = None
     engine_name: str | None = None
+    subject: ProbeSubject | None = None
+    local: LocalExploration | None = None
+    local_limits: LocalLimits = LocalLimits()
 
 
 class AnalysisEngine(Protocol):
@@ -87,7 +115,7 @@ class AnalysisController:
         self._engine, self._policy, self._clock = engine, policy, monotonic
         self._worker: asyncio.Task[None] | None = None
         self._active_run: asyncio.Task[AnalysisResult] | None = None
-        self._pending: tuple[int, int, PositionContext, tuple[str, ...]] | None = None
+        self._pending: tuple[int, int, PositionContext, tuple[str, ...], ProbeSubject | None] | None = None
         self._superseded = asyncio.Event()
         self._idle = asyncio.Event()
         self._idle.set()
@@ -97,12 +125,14 @@ class AnalysisController:
         self.latest: AnalysisResult | None = None
         self.progress: EngineProgress | None = None
 
-    def submit(self, context: PositionContext, revision: int, compare: tuple[str, ...] = ()) -> int:
+    def submit(self, context: PositionContext, revision: int, compare: tuple[str, ...] = (), subject: ProbeSubject | None = None) -> int:
         if self._closed:
             raise RuntimeError("analysis controller is closed")
+        _validate_subject(context, subject)
         self._request += 1
-        item = (self._request, revision, context, compare)
-        self.latest = AnalysisResult(self._request, revision, AnalysisState.RUNNING)
+        item = (self._request, revision, context, compare, subject)
+        limits = self._policy.focused_local if subject is not None else self._policy.local
+        self.latest = AnalysisResult(self._request, revision, AnalysisState.RUNNING, subject=subject, local_limits=limits)
         self.progress = None
         self._pending = item
         self._idle.clear()
@@ -110,6 +140,9 @@ class AnalysisController:
         if self._worker is None:
             self._worker = asyncio.create_task(self._work())
         return self._request
+
+    def submit_probe(self, context: PositionContext, revision: int, subject: ProbeSubject) -> int:
+        return self.submit(context, revision, subject=subject)
 
     async def wait(self) -> AnalysisResult | None:
         await self._idle.wait()
@@ -167,32 +200,48 @@ class AnalysisController:
             self._worker = None
             self._idle.set()
 
-    async def _run(self, request_id: int, revision: int, context: PositionContext, compare: tuple[str, ...]) -> AnalysisResult:
+    async def _run(self, request_id: int, revision: int, context: PositionContext, compare: tuple[str, ...], subject: ProbeSubject | None) -> AnalysisResult:
         board, _ = replay_position(context)
-        base = dict(request_id=request_id, revision=revision)
+        limits = self._policy.focused_local if subject is not None else self._policy.local
+        base = dict(request_id=request_id, revision=revision, subject=subject, local_limits=limits)
         if board.is_game_over():
             explanations, evidence = _current_tactics(board, context, request_id, revision)
-            return AnalysisResult(**base, state=AnalysisState.COMPLETED, explanations=explanations, evidence=evidence, message="terminal position; no engine search")
-        if len(board.piece_map()) > MAX_ENGINE_PIECES:
-            return AnalysisResult(**base, state=AnalysisState.UNSUPPORTED, message=f"engine analysis supports at most {MAX_ENGINE_PIECES} occupied squares")
+            local = await self._local(request_id, context, subject, limits, self._clock() + limits.seconds)
+            return AnalysisResult(**base, state=AnalysisState.COMPLETED, explanations=explanations, evidence=evidence, local=local, message="terminal position; no engine search")
         legal = {move.uci() for move in board.legal_moves}
         compared = tuple(dict.fromkeys(compare))
         if len(compared) > self._policy.comparison_limit or any(move not in legal for move in compared):
             return AnalysisResult(**base, state=AnalysisState.FAILED, message="comparison moves must be distinct legal moves")
         try:
+            local = None
+            if len(board.piece_map()) > MAX_ENGINE_PIECES:
+                if local is None:
+                    local = await self._local(request_id, context, subject, limits, self._clock() + limits.seconds)
+                static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
+                return AnalysisResult(**base, state=AnalysisState.UNSUPPORTED, explanations=static_explanations, evidence=static_evidence, local=local, message=f"engine analysis supports at most {MAX_ENGINE_PIECES} occupied squares")
             engine_name = await self._prepare(request_id)
             if engine_name is _SUPERSEDED:
                 return AnalysisResult(**base, state=AnalysisState.CANCELED)
-            deadline = self._clock() + self._policy.seconds
+            deadline = self._clock() + (self._policy.focused_seconds if subject is not None else self._policy.seconds)
+            if subject is not None:
+                local = await self._local(request_id, context, subject, limits, min(deadline, self._clock() + limits.seconds))
+                if request_id != self._request:
+                    return AnalysisResult(**base, state=AnalysisState.CANCELED, local=local)
             survey_time = min(self._policy.survey_seconds, max(0.0, deadline - self._clock()))
             survey = await self._search(request_id, context, EnginePolicy(survey_time, self._policy.candidate_limit), deadline) if survey_time > 0 else None
             if survey is None:
-                return AnalysisResult(**base, state=AnalysisState.COMPLETED, coverage=Coverage(0, 0, 0, True, len(legal)), engine_name=engine_name)
+                return AnalysisResult(**base, state=AnalysisState.COMPLETED, coverage=Coverage(0, 0, 0, True, len(legal)), engine_name=engine_name, local=local)
             if survey.status not in (EngineStatus.COMPLETED,):
-                return AnalysisResult(**base, state=_state(survey.status), message=survey.message, engine_name=engine_name)
+                return AnalysisResult(**base, state=_state(survey.status), message=survey.message, engine_name=engine_name, local=local)
             roots = {candidate.pv[0] for candidate in survey.candidates if candidate.pv}
             roots.update(compared)
-            selected = tuple(sorted(roots))[: self._policy.total_candidate_limit]
+            subject_roots = (
+                tuple(root.root_uci for root in local.roots)
+                if subject is not None and local is not None
+                else _subject_roots(context, subject)
+            )
+            roots.update(subject_roots)
+            selected = tuple(dict.fromkeys((*subject_roots, *sorted(roots))))[: self._policy.total_candidate_limit]
             probes: dict[str, EngineCandidate] = {}
             interrupted = False
             for index, move in enumerate(selected):
@@ -205,20 +254,39 @@ class AnalysisController:
                     interrupted = True
                     break
                 if report.status is EngineStatus.FAILED:
-                    return AnalysisResult(**base, state=AnalysisState.FAILED, message=report.message, engine_name=engine_name)
+                    return AnalysisResult(**base, state=AnalysisState.FAILED, message=report.message, engine_name=engine_name, local=local)
                 if report.candidates:
                     probes[move] = report.candidates[0]
                     if request_id == self._request:
                         partial = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
                         static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
-                        self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name)
+                        self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name, local=local)
+            if subject is None:
+                local = await explore_local(
+                    context, limits=limits, deadline=self._clock() + limits.seconds,
+                    monotonic=self._clock, root_moves=selected,
+                    cancelled=lambda: request_id != self._request or self._closed or self._superseded.is_set(),
+                    request_id=request_id,
+                )
             candidates, explanations, evidence = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
             static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
-            return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name)
+            return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name, local=local)
         except asyncio.CancelledError:
+            if self.latest is not None and self.latest.request_id == request_id:
+                return replace(self.latest, state=AnalysisState.CANCELED)
             return AnalysisResult(**base, state=AnalysisState.CANCELED)
         except Exception as error:
             return AnalysisResult(**base, state=AnalysisState.FAILED, message=str(error))
+
+    async def _local(self, request_id: int, context: PositionContext, subject: ProbeSubject | None, limits: LocalLimits, deadline: float) -> LocalExploration:
+        root_moves = (subject.move,) if subject is not None and subject.move is not None else ()
+        piece_square = _piece_square(context, subject.piece) if subject is not None and subject.piece is not None else None
+        return await explore_local(
+            context, limits=limits, deadline=deadline, monotonic=self._clock,
+            root_moves=root_moves, piece_square=piece_square,
+            cancelled=lambda: request_id != self._request or self._closed or self._superseded.is_set(),
+            request_id=request_id,
+        )
 
     async def _prepare(self, request_id: int):
         task = asyncio.create_task(self._engine.prepare())
@@ -259,6 +327,51 @@ class AnalysisController:
 
 
 _SUPERSEDED = object()
+
+
+def _piece_square(context: PositionContext, piece: PieceId) -> str:
+    placement = next((item for item in position_facts(context).pieces if item.piece_id == piece), None)
+    if placement is None:
+        raise ValueError("probe piece is not present in this position")
+    return placement.square
+
+
+def _subject_roots(context: PositionContext, subject: ProbeSubject | None) -> tuple[str, ...]:
+    if subject is None:
+        return ()
+    if subject.move is not None:
+        return (subject.move,)
+    assert subject.piece is not None
+    square = chess.parse_square(_piece_square(context, subject.piece))
+    board, _ = replay_position(context)
+    return tuple(sorted(move.uci() for move in board.legal_moves if move.from_square == square))
+
+
+def _validate_subject(context: PositionContext, subject: ProbeSubject | None) -> None:
+    if subject is None:
+        return
+    if (subject.move is None) == (subject.piece is None):
+        raise ValueError("probe subject must identify exactly one move or piece")
+    board, _ = replay_position(context)
+    if subject.move is not None:
+        try:
+            move = chess.Move.from_uci(subject.move)
+        except ValueError as exc:
+            raise ValueError("probe move must be legal UCI") from exc
+        if move not in board.legal_moves:
+            raise ValueError("probe move must be legal UCI")
+        if subject.kind is not ProbeKind.MOVE:
+            raise ValueError("probe kind does not match move subject")
+        return
+    assert subject.piece is not None
+    if subject.kind is not ProbeKind.PIECE:
+        raise ValueError("probe kind does not match piece subject")
+    placement = next((item for item in position_facts(context).pieces if item.piece_id == subject.piece), None)
+    if placement is None:
+        raise ValueError("probe piece is not present in this position")
+    expected_color = "white" if board.turn else "black"
+    if placement.color != expected_color:
+        raise ValueError("probe piece must belong to the side to move")
 
 
 def _state(status: EngineStatus) -> AnalysisState:
@@ -363,15 +476,7 @@ def _pv_deltas(context: PositionContext, request_id: int, pv: tuple[str, ...]):
     for ply, uci in enumerate(pv, 1):
         replay.push(chess.Move.from_uci(uci))
         moves.append(uci)
-        current = PositionContext(
-            context.document_id,
-            context.game_number,
-            context.node_path + (-1, request_id, *_encoded_path(moves)),
-            context.starting_fen,
-            tuple(moves),
-            replay.fen(en_passant="fen"),
-            context.has_history,
-        )
+        current = continuation_context(context, request_id, tuple(moves), replay)
         result.append(move_delta(previous, current))
         previous = current
     return tuple(result)
@@ -404,10 +509,6 @@ def _current_tactics(board: chess.Board, context: PositionContext, request_id: i
 
 def _scope(request_id: int, revision: int, context: PositionContext) -> str:
     return f"request:{request_id}:revision:{revision}:position:{context.document_id}:{context.game_number}:{'.'.join(map(str, context.node_path)) or 'root'}"
-
-
-def _encoded_path(moves: list[str]) -> tuple[int, ...]:
-    return tuple(value for uci in moves for value in (len(uci), *(ord(character) for character in uci)))
 
 
 def _san_lines(board: chess.Board, lines: tuple[tuple[str, ...], ...]) -> tuple[tuple[str, ...], ...]:

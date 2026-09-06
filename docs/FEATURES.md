@@ -2,8 +2,8 @@
 
 Status: M1 complete; M2 implementation is underway. Strict import, navigation,
 static inspection, bounded engine analysis, candidate comparison, text details,
-shared JSON snapshots, shared orientation, structural continuity, and bounded
-local exchange evaluation are implemented.
+shared JSON snapshots, shared orientation, structural continuity, bounded local
+exchange evaluation, and focused local move or piece probes are implemented.
 
 ## First milestone
 
@@ -48,6 +48,11 @@ checkpoint sequence; this section includes both completed and planned behavior.
   continuations. Recompute relationships after each ply, including counterchecks
   and intermediate moves; selective forcing search is not a complete defence
   search. Quiet responses and unsearched alternatives remain explicit gaps.
+  This local explorer is implemented at depth four and 10,000 aggregate nodes.
+  It records every examined immediate reply, omitted roots and replies, why each
+  witnessed line stopped, and continuity changes for replay. Focused piece
+  probes inspect every legal exit of the actual side's selected piece within the
+  local budget; they never flip the turn to inspect an opponent piece.
 - Build local safety, trapping, and overload assessments on those facts and
   continuations. Distinguish a witnessed refutation from no refutation found.
   Report escape coverage before claiming no viable escape, and never equate
@@ -78,6 +83,13 @@ It is capped at 4,096 expanded positions and an enclosing deadline, yields every
 coverage. Its replayable line and 1/3/3/5/9 material result are perspective
 explicit. Unsupported or incomplete work has no material result, and a negative
 result remains evidence rather than a candidate filter.
+
+Ordinary requests retain the five-second engine search and add at most 250 ms
+of local work. An explicit focused probe has a fifteen-second aggregate budget
+after engine preparation, including at most one second of local work. Local and
+nested exchange search share deadline, node, cancellation, and every-32-node
+yield accounting. Focused probe commands and their CLI presentation remain part
+of the pending interface checkpoint.
 
 ## Product aim
 

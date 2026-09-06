@@ -4,6 +4,18 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 bounded local exploration and focused probes — 2026-09-06
+
+- Added cancelable depth-four local exploration for checks, captures,
+  promotions, direct attacks, and focused move or piece probes, with replayable
+  per-reply continuity and exchange evidence.
+- Exposed immutable probe subjects, local limits, omissions, termination
+  reasons, and coverage through application analysis results while preserving
+  engine candidates when local material evidence is negative.
+- Kept ordinary local work within 250 ms and focused local work within one
+  second of a fifteen-second focused request, sharing the 10,000-node allowance
+  and cooperative yield accounting with nested exchange search.
+
 ### Stale analysis submission boundary — 2026-09-06
 
 - Reject obsolete supplied session views before resolving comparison moves or

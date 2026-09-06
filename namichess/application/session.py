@@ -9,7 +9,7 @@ import chess
 import chess.pgn
 
 from namichess.analysis.static import move_delta, position_facts
-from namichess.application.analysis import AnalysisController
+from namichess.application.analysis import AnalysisController, ProbeSubject
 from namichess.application.imports import (
     ImportedDocument,
     import_fen_text,
@@ -162,6 +162,18 @@ class Session:
         current = self._current_view(view)
         moves = self.resolve_moves(compare) if compare else ()
         controller.submit(current.position, current.revision, moves)
+        return self.analysis_view(controller, view=current)
+
+    def request_probe(
+        self,
+        controller: AnalysisController,
+        subject: ProbeSubject,
+        *,
+        view: SessionView | None = None,
+    ) -> SessionView:
+        """Submit a validated focused probe without changing the position."""
+        current = self._current_view(view)
+        controller.submit_probe(current.position, current.revision, subject)
         return self.analysis_view(controller, view=current)
 
     def analysis_view(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
 
@@ -68,12 +68,14 @@ class _ExchangeSearch:
         deadline: float,
         monotonic: Callable[[], float],
         node_limit: int,
+        cooperate: Callable[[], Awaitable[bool]] | None,
     ) -> None:
         self.perspective = perspective
         self.target = target
         self.deadline = deadline
         self.monotonic = monotonic
         self.node_limit = node_limit
+        self.cooperate = cooperate
         self.nodes = 0
 
     async def evaluate(self, board: chess.Board, score: int) -> _SearchResult:
@@ -83,7 +85,11 @@ class _ExchangeSearch:
             return _SearchResult(ExchangeStatus.INCOMPLETE, limit_reached=ExchangeLimit.NODES)
 
         self.nodes += 1
-        if self.nodes % _YIELD_INTERVAL == 0:
+        if self.cooperate is not None:
+            if not await self.cooperate():
+                limit = ExchangeLimit.DEADLINE if self.monotonic() >= self.deadline else ExchangeLimit.NODES
+                return _SearchResult(ExchangeStatus.INCOMPLETE, limit_reached=limit)
+        elif self.nodes % _YIELD_INTERVAL == 0:
             await asyncio.sleep(0)
 
         # A terminal chess result has no legal decision to stop exchanging, and
@@ -141,6 +147,7 @@ async def evaluate_exchange(
     deadline: float,
     monotonic: Callable[[], float],
     node_limit: int = MAX_EXCHANGE_NODES,
+    cooperate: Callable[[], Awaitable[bool]] | None = None,
 ) -> ExchangeEvidence:
     """Evaluate a forced capture and optimal legal recaptures on its target square.
 
@@ -168,6 +175,7 @@ async def evaluate_exchange(
         deadline=deadline,
         monotonic=monotonic,
         node_limit=node_limit,
+        cooperate=cooperate,
     )
     result = await search.evaluate(scratch, initial_delta)
     perspective_name = "white" if perspective == chess.WHITE else "black"
