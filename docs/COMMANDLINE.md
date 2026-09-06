@@ -196,6 +196,12 @@ engine analysis reports unsupported and does not launch Stockfish for them.
 
 ## Text results and recovery
 
+A running request has a concise acknowledgment without recurring elapsed-time
+lines. Completion reports recorded root probes and their known depth or depth
+range; survey lines and unfinished roots are excluded. Coverage still reports
+interruption. Compact numeric scores and material deltas omit repeated
+perspective labels; their documented White-positive convention is unchanged.
+
 A completed result shows its state and coverage, at most three priority facts,
 and a candidate table. Priority favors current check, direct or engine-reported
 mate, and focused assessment results before ordinary line facts. Candidate facts

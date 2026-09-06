@@ -4,7 +4,7 @@
   "position.in_check": "The side to move is in check.",
   "position.mate_in_one": "The listed legal moves give mate in one.",
   "candidate.allows_opponent_mate_in_one": "After this move, the opponent has {reply_count} mate-in-one reply or replies.",
-  "line.capture": "Line: {san} captures {captured_color} {captured_piece_type}; material Δ {material_delta_white:+d} (White).",
+  "line.capture": "Line: {san} captures {captured_color} {captured_piece_type}; material Δ {material_delta_white:+d}.",
   "line.check": "Line: {san} gives check.",
   "cli.no_previous_move": "No move leads into this position.",
   "cli.candidate_line_root": "At the candidate-line root.",

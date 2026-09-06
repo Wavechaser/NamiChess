@@ -157,7 +157,7 @@ def render_details(result: AnalysisResult, number: int, catalog: ExplanationCata
             if consequence.promotion is not None:
                 detail += f"; promotes to {consequence.promotion}"
             if consequence.material_delta_white:
-                detail += f"; material Δ {consequence.material_delta_white:+d} (White)"
+                detail += f"; material Δ {consequence.material_delta_white:+d}"
             if consequence.gives_check:
                 detail += " and gives check"
             lines.append(f"{consequence.ply}. {detail}")
@@ -352,7 +352,7 @@ def _engine_score_text(score: EngineScore, *, provisional: bool = False) -> str:
         return f"{mate_winner} mates in {abs(mate)}{suffix}"
     centipawns = score.centipawns
     assert centipawns is not None
-    return f"{centipawns / 100:+.2f} (+ favors White / − favors Black){suffix}"
+    return f"{centipawns / 100:+.2f}{suffix}"
 
 
 def render_games(view: SessionView) -> str:

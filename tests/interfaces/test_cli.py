@@ -418,7 +418,24 @@ def test_capture_summary_keeps_white_perspective_for_both_movers(
         AnalysisResult(1, 1, AnalysisState.COMPLETED, (candidate,), (explanation,)), CATALOG,
     )
     assert f"Line: {san} captures {captured_color} {captured_type}" in output
-    assert f"material Δ {white_delta:+d} (White)" in output
+    assert f"material Δ {white_delta:+d}" in output
+    assert "(White)" not in output
+
+
+@pytest.mark.parametrize(("centipawns", "rendered"), ((125, "+1.25"), (-125, "-1.25")))
+def test_compact_scores_preserve_white_perspective_sign_without_repeating_the_convention(
+    centipawns, rendered,
+) -> None:
+    candidate = CandidateResult(
+        "candidate", PositionId(1, 1, ()), "a1a2", "Ka2", "white", 1,
+        EngineScore(centipawns, None, None, ScoreBound.EXACT), (), False, (), (),
+    )
+
+    output = render_analysis(AnalysisResult(1, 1, AnalysisState.COMPLETED, (candidate,)), CATALOG)
+
+    assert rendered in output
+    assert "favors White" not in output
+    assert "favors Black" not in output
 
 
 def test_redirected_input_waits_for_latest_analysis_and_closes() -> None:
@@ -534,7 +551,8 @@ def test_details_render_recapture_promotion_and_material_change() -> None:
     output = render_details(result, 1, CATALOG)
     assert "recapture" in output
     assert "promotes to queen" in output
-    assert "material Δ +13 (White)" in output
+    assert "material Δ +13" in output
+    assert "(White)" not in output
     assert "gives check" in output
     assert "Probe score: +1.00" in output
     assert "Continuation: 1. a8=Q+" in output
