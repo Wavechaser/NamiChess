@@ -11,7 +11,8 @@ from enum import Enum
 import chess
 
 from namichess.analysis.exchange import ExchangeEvidence, evaluate_exchange
-from namichess.analysis.static import MoveDelta, move_delta
+from namichess.analysis.static import MoveDelta, _move_delta_from_facts, move_delta, position_facts
+from namichess.analysis.threats import ThreatEvidence, verify_checking_threats
 from namichess.analysis.continuations import continuation_context
 from namichess.domain.models import PositionContext, PositionId
 from namichess.domain.position import replay_position
@@ -74,6 +75,8 @@ class LocalRootEvidence:
     exchange: ExchangeEvidence | None = None
     first_reply: str | None = None
     omitted_replies: tuple[str, ...] = ()
+    threats: tuple[ThreatEvidence, ...] = ()
+    root_delta: MoveDelta | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +178,7 @@ async def explore_local(
         explorer.limit_reached = LocalLimit.DEADLINE
     roots: list[LocalRootEvidence] = []
     completed_roots: set[str] = set()
+    before_facts = position_facts(context) if explorer.limit_reached is None else None
     for root in selected:
         if explorer.limit_reached is not None:
             break
@@ -193,8 +197,27 @@ async def explore_local(
             )
         child = board.copy(stack=True)
         child.push(root)
+        root_context = continuation_context(context, request_id, (*context.moves, root.uci()), child)
+        after_facts = position_facts(root_context)
+        assert before_facts is not None
+        root_delta = _move_delta_from_facts(context, root_context, before_facts, after_facts)
+        if monotonic() >= deadline:
+            explorer.limit_reached = LocalLimit.DEADLINE
         terminal = child.is_game_over(claim_draw=False)
         replies = () if terminal else tuple(sorted(child.legal_moves, key=lambda move: move.uci()))
+        threats = await verify_checking_threats(
+            context=context, request_id=request_id, root_context=root_context,
+            root_delta=root_delta, after_facts=after_facts, after_root=child,
+            max_depth=limits.max_depth,
+            checkpoint=explorer.checkpoint, deadline=deadline, monotonic=monotonic,
+        )
+        if explorer.limit_reached is not None:
+            roots.append(LocalRootEvidence(
+                root.uci(), len(replies), 0, (), exchange,
+                replies[0].uci() if replies else None,
+                tuple(reply.uci() for reply in replies), threats, root_delta,
+            ))
+            break
         lines: list[LocalLine] = []
         examined = 0
         if terminal:
@@ -231,6 +254,7 @@ async def explore_local(
             root.uci(), len(replies), examined, tuple(lines), exchange,
             replies[0].uci() if replies else None,
             tuple(reply.uci() for reply in replies if reply.uci() not in covered_replies),
+            threats, root_delta,
         ))
         if examined == len(replies):
             completed_roots.add(root.uci())

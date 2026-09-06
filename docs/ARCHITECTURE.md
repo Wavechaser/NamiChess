@@ -403,6 +403,19 @@ Post-move contacts support existing fork targets, while newly established
 relationships cite raw delta contacts. These records describe geometry and
 check, not legal capture availability or material gain. Check provenance is
 independent of the compact move-account selection budget.
+Bounded checking-threat verification groups newly established mover-side attacks
+by target identity and examines immediate legal defenses independently of the
+local explorer's illustrative forcing line. Its records connect the check and
+attacks to response roles, scoped target squares, and actual legal capture
+witnesses with actor identities and SAN/UCI. `LocalRootEvidence.root_delta`
+retains the exact source for mechanism references; `threats` retains coverage,
+omitted replies, and explicit conclusions. Verification shares the existing
+local time/node/cancellation limits and requires depth for root, reply, capture.
+Terminal roots have no defensive continuations; terminal responses cannot be
+capture witnesses. `capture_available_every_reply` requires nonempty complete
+legal-reply coverage. It establishes availability, not a forced gain, safe
+capture, or exhaustive deeper continuation. Optional exchange evidence retains
+its target-square model and unsupported checking-capture cases separately.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.
