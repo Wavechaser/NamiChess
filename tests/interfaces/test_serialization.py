@@ -5,7 +5,8 @@ from pathlib import Path
 
 from namichess.analysis.engine import EngineCandidate, EngineReport, EngineScore, EngineStatus, ScoreBound
 from namichess.analysis.local import LocalLimits
-from namichess.application.analysis import AnalysisController, AnalysisPolicy, AnalysisResult, AnalysisState, Coverage
+from namichess.application.analysis import AnalysisController, AnalysisPolicy, AnalysisResult, AnalysisState, CandidateResult, Coverage
+from namichess.application.candidate_structure import build_root_structures
 from namichess.application.session import Session
 from namichess.application.preview import preview_candidate_line
 from namichess.domain.position import replay_position
@@ -112,6 +113,55 @@ def test_schema_three_serializes_attention_with_closed_current_and_move_sources(
     assert all(source["before"] == payload["previous_move"]["before"] for source in item["move_sources"])
     assert all(source["after"] == payload["previous_move"]["after"] for source in item["move_sources"])
     assert all(source["uci"] == payload["previous_move"]["uci"] for source in item["move_sources"])
+
+
+def test_serialized_candidate_structure_resolves_defender_identity_contrast_without_cli() -> None:
+    source = Session().load_fen("4k3/8/8/3p4/4P3/8/1N6/R5K1 w - - 0 1")
+    roots = ("a1e1", "b2c4")
+    structures = build_root_structures(source.position, 7, roots)
+    candidates = tuple(
+        CandidateResult(
+            candidate_id=f"candidate:{uci}",
+            position_id=source.position.position_id,
+            uci=uci,
+            san="Re1" if uci == "a1e1" else "Nc4",
+            mover_color="white",
+            rank=None,
+            score=None,
+            pv=(),
+            provisional=True,
+            explanation_refs=(),
+            evidence_refs=(),
+            root_structure=structures[uci],
+        )
+        for uci in roots
+    )
+    shared = dataclasses.replace(
+        source,
+        analysis=AnalysisResult(7, source.revision, AnalysisState.RUNNING, candidates),
+    )
+    serialized = json.loads(serialize_session_view(shared))["analysis"]["candidates"]
+    by_root = {candidate["uci"]: candidate["root_structure"] for candidate in serialized}
+
+    re1, nc4 = by_root["a1e1"], by_root["b2c4"]
+    assert re1["delta"]["uci"] == re1["account"]["uci"] == "a1e1"
+    assert nc4["delta"]["uci"] == nc4["account"]["uci"] == "b2c4"
+    assert re1["delta"]["after"] == re1["account"]["after"]
+    assert nc4["delta"]["after"] == nc4["account"]["after"]
+
+    re1_change = re1["defense_changes"][0]
+    nc4_change = nc4["defense_changes"][0]
+    assert re1_change["subject"] == nc4_change["subject"]
+    assert re1_change["square"]["square"] == nc4_change["square"]["square"] == "e4"
+    assert re1_change["baseline_defenders"] == nc4_change["baseline_defenders"] == []
+    assert [piece["origin_square"] for piece in re1_change["after_defenders"]] == ["a1"]
+    assert nc4_change["after_defenders"] == []
+    assert re1_change["contrasting_roots"] == [{
+        "uci": "b2c4", "position_id": nc4["delta"]["after"],
+    }]
+    assert nc4_change["contrasting_roots"] == [{
+        "uci": "a1e1", "position_id": re1["delta"]["after"],
+    }]
 
 
 def test_non_cli_consumer_resolves_immediate_navigation_references() -> None:

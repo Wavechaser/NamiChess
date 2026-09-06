@@ -374,6 +374,15 @@ and existing pins. Each item uses the current piece square and cites its exact
 position facts and move-delta sources. The shared selection is capped at three
 with an explicit `omitted_count`; it starts no search and makes no claim that a
 geometrically attacked piece can legally or safely be won.
+Selected analysis candidates also carry request-scoped root structure computed
+once before probe partials are assembled. Each root retains its full static move
+delta and move account plus at most three defense changes. A defense change
+compares exact defender piece-identity sets, not counts, for pieces surviving in
+every selected root. It appears only when alternatives differ; a candidate whose
+state matches the baseline is retained when another root changes that state.
+Current after-root squares and references to contrasting root position IDs keep
+the comparison resolvable for non-CLI consumers. These structural differences
+do not explain or justify an engine score.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.

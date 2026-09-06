@@ -23,7 +23,8 @@ from namichess.analysis.assessments import (
     EvidenceRef, MaterialExposure, TrappingAssessment,
 )
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult, Coverage
-from namichess.domain.models import PieceId, PositionId, SquareRef
+from namichess.application.candidate_structure import build_root_structures
+from namichess.domain.models import PieceId, PositionContext, PositionId, SquareRef
 from namichess.interfaces.explanations import ExplanationCatalog
 from namichess.interfaces.orientation import BoardDisplayState, Orientation, ResolvedOrientation
 from namichess.interfaces.settings import SettingsStore
@@ -558,8 +559,153 @@ def test_concise_analysis_prioritizes_engine_mate_within_three_facts() -> None:
     output = render_analysis(
         AnalysisResult(1, 1, AnalysisState.COMPLETED, explanations=explanations), CATALOG,
     )
-    assert output.count("Fact:") == 3
+    assert output.count("Fact:") == 1
     assert "Stockfish reports White mates in 2 moves" in output
+
+
+def _candidate_comparison(fen: str, roots: tuple[str, ...], sans: tuple[str, ...]):
+    context = PositionContext(1, 1, (), fen, (), fen, False)
+    structures = build_root_structures(context, 7, roots)
+    return tuple(
+        CandidateResult(
+            f"candidate:{uci}", context.position_id, uci, san,
+            "white" if chess.Board(fen).turn else "black", index,
+            None, (), False, (), (), root_structure=structures[uci],
+        )
+        for index, (uci, san) in enumerate(zip(roots, sans), 1)
+    )
+
+
+def test_candidate_rows_lead_with_explicit_defense_contrasts_and_true_unchanged_state() -> None:
+    fen = "4k3/8/8/3p4/4P3/8/1N6/R5K1 w - - 0 1"
+    candidates = _candidate_comparison(fen, ("a1e1", "b2c4"), ("Re1", "Nc4"))
+
+    output = render_analysis(AnalysisResult(7, 1, AnalysisState.COMPLETED, candidates), CATALOG)
+
+    re1 = next(line for line in output.splitlines() if "  Re1  " in line)
+    nc4 = next(line for line in output.splitlines() if "  Nc4  " in line)
+    assert "adds rook e1 as defender of pawn e4" in re1
+    assert "rook e1 now defends pawn e4" not in re1
+    assert "leaves pawn e4 defense unchanged" in nc4
+
+
+def test_candidate_defense_comparison_mirrors_for_black() -> None:
+    fen = chess.Board("4k3/8/8/3p4/4P3/8/1N6/R5K1 w - - 0 1").mirror().fen(en_passant="fen")
+    candidates = _candidate_comparison(fen, ("a8e8", "b7c5"), ("Re8", "Nc5"))
+
+    output = render_analysis(AnalysisResult(7, 1, AnalysisState.COMPLETED, candidates), CATALOG)
+
+    assert "adds rook e8 as defender of pawn e5" in output
+    assert "leaves pawn e5 defense unchanged" in output
+
+
+def test_equal_defender_counts_with_different_identities_render_as_replacement() -> None:
+    candidates = _candidate_comparison(chess.STARTING_FEN, ("g1h3", "b1c3"), ("Nh3", "Nc3"))
+
+    output = render_analysis(AnalysisResult(7, 1, AnalysisState.COMPLETED, candidates), CATALOG)
+
+    assert "replaces" in output
+    replacement = next(line for line in output.splitlines() if "replaces" in line)
+    assert "defense unchanged" not in replacement
+
+
+def test_same_subject_pin_is_retained_when_unchanged_defense_has_no_overlapping_source() -> None:
+    fen = "3bk3/4n3/8/8/8/8/4B3/3QR2K w - - 0 1"
+    candidates = _candidate_comparison(fen, ("e2b5", "d1d8"), ("Bb5+", "Qxd8+"))
+
+    output = render_analysis(AnalysisResult(7, 1, AnalysisState.COMPLETED, candidates), CATALOG)
+    bb5 = next(line for line in output.splitlines() if "  Bb5+  " in line)
+    details = render_details(AnalysisResult(7, 1, AnalysisState.COMPLETED, candidates), 1, CATALOG)
+
+    assert "leaves knight e7 defense unchanged" in bb5
+    assert "knight e7 is pinned to king e8" not in bb5
+    assert "knight e7 is pinned to king e8" in details
+    assert "4 move consequence(s) omitted" in bb5
+    summary = bb5.split("not available  ", 1)[1]
+    substantive = [clause for clause in summary.split("; ") if not clause.endswith("omitted")]
+    assert len(substantive) == 4
+
+
+@pytest.mark.parametrize(
+    ("fen", "roots", "sans", "move", "expected"),
+    (
+        (
+            "7k/8/8/3p4/4P3/8/8/K7 w - - 0 1", ("e4d5",), ("exd5",),
+            "exd5", "captures pawn on d5",
+        ),
+        (
+            "4k3/P7/8/8/8/8/8/4K3 w - - 0 1", ("a7a8q",), ("a8=Q+",),
+            "a8=Q+", "promotes to queen, gives check",
+        ),
+        (
+            "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", ("e1g1",), ("O-O",),
+            "O-O", "castles with rook h1→f1",
+        ),
+        (
+            "4k3/8/8/8/8/8/4B3/4R2K w - - 0 1", ("e2c4",), ("Bc4+",),
+            "Bc4+", "gives check",
+        ),
+    ),
+)
+def test_candidate_rows_keep_direct_root_effects_before_incidental_structure(
+    fen, roots, sans, move, expected,
+) -> None:
+    candidate = _candidate_comparison(fen, roots, sans)[0]
+
+    output = render_analysis(AnalysisResult(7, 1, AnalysisState.COMPLETED, (candidate,)), CATALOG)
+    row = next(line for line in output.splitlines() if f"  {move}  " in line)
+
+    assert expected in row
+
+
+def test_candidate_structure_precedes_later_pv_capture_and_capture_narration_stays_in_details() -> None:
+    fen = "4k3/8/8/3p4/4P3/8/1N6/R5K1 w - - 0 1"
+    candidate = dataclasses.replace(
+        _candidate_comparison(fen, ("a1e1", "b2c4"), ("Re1", "Nc4"))[0],
+        pv=("a1e1", "d5e4"), explanation_refs=("later-capture",),
+    )
+    capture = Explanation(
+        "later-capture", "line.capture",
+        (("san", "dxe4"), ("captured_color", "white"),
+         ("captured_piece_type", "pawn"), ("material_delta_white", -1)),
+    )
+    result = AnalysisResult(7, 1, AnalysisState.COMPLETED, (candidate,), (capture,))
+
+    compact = render_analysis(result, CATALOG)
+    details = render_details(result, 1, CATALOG)
+
+    assert "adds rook e1 as defender of pawn e4" in compact
+    assert "dxe4 captures" not in compact
+    assert "dxe4 captures white pawn" in details
+
+
+def test_provisional_candidate_without_pv_still_renders_shared_root_structure() -> None:
+    candidate = dataclasses.replace(
+        _candidate_comparison(chess.STARTING_FEN, ("e2e3", "g1f3"), ("e3", "Nf3"))[0],
+        provisional=True, pv=(),
+    )
+
+    output = render_analysis(AnalysisResult(7, 1, AnalysisState.RUNNING, (candidate,)), CATALOG)
+
+    assert "structure unavailable" not in output
+    assert "defense" in output
+
+
+def test_candidate_compact_omissions_include_retained_items_and_details_show_all_retained_structure() -> None:
+    candidate = _candidate_comparison(
+        chess.STARTING_FEN, ("e2e3", "e2e4", "g1f3"), ("e3", "e4", "Nf3"),
+    )[0]
+    structure = candidate.root_structure
+    assert structure is not None and len(structure.defense_changes) == 3
+
+    result = AnalysisResult(7, 1, AnalysisState.COMPLETED, (candidate,))
+    compact = render_analysis(result, CATALOG)
+    details = render_details(result, 1, CATALOG)
+
+    assert f"{structure.omitted_count + 1} defense contrast(s) omitted" in compact
+    for change in structure.defense_changes:
+        assert change.square.square in details
+    assert "defense contrast(s) omitted" not in details or structure.omitted_count > 0
 
 
 @pytest.mark.parametrize(
@@ -583,9 +729,8 @@ def test_capture_summary_keeps_white_perspective_for_both_movers(
         "candidate", PositionId(1, 1, ()), "a1a2", san, mover, 1,
         EngineScore(0, None, None, ScoreBound.EXACT), (), False, ("capture",), (),
     )
-    output = render_analysis(
-        AnalysisResult(1, 1, AnalysisState.COMPLETED, (candidate,), (explanation,)), CATALOG,
-    )
+    result = AnalysisResult(1, 1, AnalysisState.COMPLETED, (candidate,), (explanation,))
+    output = render_details(result, 1, CATALOG)
     assert f"Line: {san} captures {captured_color} {captured_type}" in output
     assert f"material Δ {white_delta:+d}" in output
     assert "(White)" not in output
@@ -694,7 +839,9 @@ def test_unranked_candidate_remains_accessible_by_stable_display_number() -> Non
         None, (), True, (), (),
     )
     result = AnalysisResult(3, view.revision, AnalysisState.RUNNING, (candidate,))
-    assert "Candidate 1: Ra2 (a1a2)" in render_details(result, 1, CATALOG)
+    output = render_details(result, 1, CATALOG)
+    assert "Candidate 1: Ra2 (a1a2)" in output
+    assert "Structure: unavailable" in output
 
 
 def test_details_render_recapture_promotion_and_material_change() -> None:

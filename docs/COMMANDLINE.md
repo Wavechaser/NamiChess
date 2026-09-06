@@ -97,7 +97,7 @@ decode output as UTF-8.
 | `probe piece <square>` | Resolve the side-to-move piece and analyze its legal exits without moving the cursor. |
 | `line <candidate-number> <ply>` | Display candidate ply zero or a later ply as a read-only board with its bounded attention selection in the current orientation. |
 | `compare <move> <move>` | Analyze two distinct legal SAN or UCI moves without changing the selected node. |
-| `details <candidate-number>` | Show the selected result's evidence, survey/probe scores, numbered SAN continuations, coordinates, captures, recaptures, promotions, material changes, and checks. |
+| `details <candidate-number>` | Show the candidate's immediate root structure followed by complete evidence, survey/probe scores, numbered SAN continuations, coordinates, captures, recaptures, promotions, material changes, and checks. |
 | `json` | Emit one complete versioned snapshot of the shared session and current-revision analysis. |
 | `cancel` | Await cancellation of active analysis before accepting a later position request. |
 | `help` | Show the compact command list. |
@@ -228,6 +228,19 @@ are prefixed with the candidate's root SAN so facts from different continuations
 cannot be confused. Each table row contains one concise priority explanation;
 `details` contains the complete evidence.
 
+Candidate rows lead with the shared immediate root structure. When selected
+roots differ in a piece's geometric defenders, the row identifies added,
+removed, or replaced defender identities; it says defense is unchanged only
+when the shared comparison records equality with another differing root. One or
+two such contrasts precede remaining bounded root-account effects. Compact rows
+show at most three structural clauses plus one combined direct-effect clause.
+Root-local omission counts stay explicit. A candidate without shared root structure says
+that structure is unavailable. Ordinary captures and checks later in a
+principal variation remain in `details` instead of displacing immediate
+structure in the compact table. Current-position check or mate, a direct
+candidate mate-in-one warning, and qualified engine-reported mate evidence
+remain visible.
+
 `failed` means the engine request failed while the static session remains usable.
 If the configured file was temporarily unavailable, restore it at the same path
 and run `analyze` to retry. To select a different path, exit and restart with the
@@ -249,6 +262,14 @@ position-scoped square references plus `supporting_facts` that resolve to the
 retained raw delta. `omitted_count` reports consequences outside the shared
 selection. Consequences describe geometric or directly recorded move effects;
 they do not assert legal access, tactical safety, intent, or score causality.
+Candidate records may also contain `root_structure`, which holds the candidate
+root delta and bounded move account plus explicit defender comparisons against
+the other selected roots. Defender comparisons retain baseline and resulting
+piece identities, the current subject square, and the roots whose resulting
+defense differs. Changed defense identities carry source references to their
+exact added or removed defense contacts; an explicitly unchanged comparison has
+no changed-contact source. Their root-local `omitted_count` does not imply that
+an absent piece or relationship was unchanged.
 The snapshot is assembled by the application and includes analysis only when its
 position revision matches the selected session revision. `analysis` is `null`
 when no current result exists.

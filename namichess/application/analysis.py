@@ -23,6 +23,7 @@ from namichess.analysis.evidence import Evidence, Explanation, line_consequences
 from namichess.analysis.local import LocalExploration, LocalLimits, explore_local
 from namichess.analysis.static import move_delta, position_facts
 from namichess.analysis.continuations import continuation_context
+from namichess.application.candidate_structure import RootStructure, build_root_structures
 from namichess.domain.models import PieceId, PiecePlacement, PositionContext, PositionId, SquareRef
 from namichess.domain.position import replay_position
 
@@ -81,6 +82,7 @@ class CandidateResult:
     explanation_refs: tuple[str, ...]
     evidence_refs: tuple[str, ...]
     survey_score: EngineScore | None = None
+    root_structure: RootStructure | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -256,6 +258,7 @@ class AnalysisController:
             )
             roots.update(subject_roots)
             selected = tuple(dict.fromkeys((*subject_roots, *sorted(roots))))[: self._policy.total_candidate_limit]
+            root_structures = build_root_structures(context, request_id, selected)
             probes: dict[str, EngineCandidate] = {}
             interrupted = False
             for index, move in enumerate(selected):
@@ -272,7 +275,10 @@ class AnalysisController:
                 if report.candidates:
                     probes[move] = report.candidates[0]
                     if request_id == self._request:
-                        partial = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
+                        partial = _assemble(
+                            request_id, revision, board, context, selected, probes,
+                            survey.candidates, root_structures,
+                        )
                         static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
                         self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name, local=local, **local_assessments)
             if subject is None:
@@ -283,7 +289,10 @@ class AnalysisController:
                     request_id=request_id,
                 )
                 local_assessments = _assessments(context, local, subject)
-            candidates, explanations, evidence = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
+            candidates, explanations, evidence = _assemble(
+                request_id, revision, board, context, selected, probes,
+                survey.candidates, root_structures,
+            )
             static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
             return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name, local=local, **local_assessments)
         except asyncio.CancelledError:
@@ -419,7 +428,16 @@ def _state(status: EngineStatus) -> AnalysisState:
     return AnalysisState(status.value)
 
 
-def _assemble(request_id: int, revision: int, board: chess.Board, context: PositionContext, roots: tuple[str, ...], probes: dict[str, EngineCandidate], survey: tuple[EngineCandidate, ...]):
+def _assemble(
+    request_id: int,
+    revision: int,
+    board: chess.Board,
+    context: PositionContext,
+    roots: tuple[str, ...],
+    probes: dict[str, EngineCandidate],
+    survey: tuple[EngineCandidate, ...],
+    root_structures: dict[str, RootStructure] | None = None,
+):
     mating_replies_by_root: dict[str, tuple[str, ...]] = {}
     for uci in roots:
         reply_board = board.copy(stack=True)
@@ -519,7 +537,7 @@ def _assemble(request_id: int, revision: int, board: chess.Board, context: Posit
             eid = f"{candidate_id}:survey-final-disagreement"
             explanations.append(Explanation(eid, "engine.survey_final_disagreement", moves=(uci,), evidence_refs=(survey_evidence_id, f"{candidate_id}:engine-line")))
             exrefs.append(eid)
-        candidates.append(CandidateResult(candidate_id, context.position_id, uci, board.san(root_move), "white" if board.turn else "black", ranks.get(uci), item.score if item else None, item.pv if item else (), item is None or item.score.bound is not ScoreBound.EXACT or bool(mating_replies), tuple(exrefs), tuple(refs), survey_item.score if survey_item else None))
+        candidates.append(CandidateResult(candidate_id, context.position_id, uci, board.san(root_move), "white" if board.turn else "black", ranks.get(uci), item.score if item else None, item.pv if item else (), item is None or item.score.bound is not ScoreBound.EXACT or bool(mating_replies), tuple(exrefs), tuple(refs), survey_item.score if survey_item else None, root_structures.get(uci) if root_structures is not None else None))
     return tuple(candidates), tuple(explanations), tuple(evidence)
 
 

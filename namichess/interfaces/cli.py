@@ -102,6 +102,8 @@ def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
     critical: list[str] = []
     ordinary: list[str] = []
     for explanation in sorted(result.explanations, key=_explanation_priority):
+        if explanation.catalog_id in {"line.capture", "line.check"}:
+            continue
         candidate = next(
             (item for item in result.candidates if explanation.explanation_id in item.explanation_refs),
             None,
@@ -121,11 +123,7 @@ def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
         lines.append("#  Rank  Move  Score  Summary")
     for number, candidate in enumerate(result.candidates, 1):
         candidate_explanations = [explanations[ref] for ref in candidate.explanation_refs if ref in explanations]
-        summary = (
-            catalog.render(min(candidate_explanations, key=_explanation_priority))
-            if candidate_explanations
-            else "No concrete explanation available."
-        )
+        summary = _candidate_summary(candidate, candidate_explanations, catalog)
         lines.append(
             f"{number}  {candidate.rank if candidate.rank is not None else '-'}  {candidate.san}  "
             f"{_score_text(candidate)}  {summary}"
@@ -140,6 +138,7 @@ def render_details(result: AnalysisResult, number: int, catalog: ExplanationCata
     evidence = {item.evidence_id: item for item in result.evidence}
     explanations = {item.explanation_id: item for item in result.explanations}
     lines = [f"Candidate {number}: {candidate.san} ({candidate.uci})", f"Score: {_score_text(candidate)}"]
+    lines.append("Structure: " + "; ".join(_candidate_structure_clauses(candidate, compact=False)))
     for ref in candidate.explanation_refs:
         if ref in explanations:
             lines.append(catalog.render(explanations[ref]))
@@ -210,6 +209,128 @@ def _render_assessment(
     return f"{subject}: {text}"
 
 
+def _candidate_summary(
+    candidate: CandidateResult,
+    explanations: list[Explanation],
+    catalog: ExplanationCatalog,
+) -> str:
+    clauses = (
+        ["structure unavailable"]
+        if candidate.root_structure is None else list(_candidate_structure_clauses(candidate, compact=True))
+    )
+    warning = next((
+        item for item in sorted(explanations, key=_explanation_priority)
+        if item.catalog_id in {
+            "candidate.allows_opponent_mate_in_one", "engine.reported_mate",
+        }
+    ), None)
+    if warning is not None:
+        clauses.append(catalog.render(warning))
+    return "; ".join(clauses)
+
+
+def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -> tuple[str, ...]:
+    structure = candidate.root_structure
+    if structure is None:
+        return ("unavailable",)
+    clauses = []
+    displayed_sources = set()
+    retained_defense_clauses = []
+    retained_defense_sources = []
+    for change in structure.defense_changes:
+        subject = _candidate_piece_label(structure.delta, change.subject)
+        before = set(change.baseline_defenders)
+        after = set(change.after_defenders)
+        added = tuple(item for item in change.after_defenders if item not in before)
+        removed = tuple(item for item in change.baseline_defenders if item not in after)
+        if not added and not removed:
+            if not change.contrasting_roots:
+                continue
+            clause = f"leaves {subject} defense unchanged"
+        elif added and removed:
+            role = "defender" if len(added) == 1 else "defenders"
+            clause = (
+                f"replaces {_candidate_piece_list(structure.delta, removed)} with "
+                f"{_candidate_piece_list(structure.delta, added)} as {role} of {subject}"
+            )
+        elif added:
+            role = "defender" if len(added) == 1 else "defenders"
+            clause = (
+                f"adds {_candidate_piece_list(structure.delta, added)} as {role} of {subject}"
+            )
+        else:
+            role = "defender" if len(removed) == 1 else "defenders"
+            clause = (
+                f"removes {_candidate_piece_list(structure.delta, removed)} as {role} of {subject}"
+            )
+        retained_defense_clauses.append(clause)
+        retained_defense_sources.append(change.supporting_facts)
+    defense_limit = min(2, len(retained_defense_clauses)) if compact else len(retained_defense_clauses)
+    clauses.extend(retained_defense_clauses[:defense_limit])
+    for sources in retained_defense_sources[:defense_limit]:
+        displayed_sources.update(sources)
+
+    direct = _candidate_direct_effects(structure.delta)
+    if direct:
+        clauses.append(", ".join(direct))
+
+    account_clauses = _candidate_account_clauses(
+        structure.delta, structure.account, frozenset(displayed_sources),
+    )
+    remaining = max(0, 3 - defense_limit) if compact else len(account_clauses)
+    shown_account = account_clauses[:remaining]
+    clauses.extend(shown_account)
+
+    defense_omitted = structure.omitted_count
+    account_omitted = structure.account.omitted_count - structure.omitted_direct_count
+    if compact:
+        defense_omitted += len(retained_defense_clauses) - defense_limit
+        account_omitted += len(account_clauses) - len(shown_account)
+    if defense_omitted:
+        clauses.append(f"{defense_omitted} defense contrast(s) omitted")
+    if account_omitted:
+        clauses.append(f"{account_omitted} move consequence(s) omitted")
+    return tuple(clauses)
+
+
+def _candidate_direct_effects(delta: MoveDelta) -> tuple[str, ...]:
+    effects = []
+    if delta.captured is not None:
+        effects.append(f"captures {delta.captured.piece_type} on {delta.captured.square}")
+    if delta.promoted:
+        effects.append(f"promotes to {delta.moved.after.piece_type}")
+    if delta.castling_rook is not None:
+        effects.append(
+            f"castles with rook {delta.castling_rook.before.square}→{delta.castling_rook.after.square}"
+        )
+    if delta.gives_check:
+        effects.append("gives check")
+    return tuple(effects)
+
+
+def _candidate_account_clauses(
+    delta: MoveDelta, account: MoveAccount, displayed_sources: frozenset,
+) -> tuple[str, ...]:
+    direct = {
+        ConsequenceKind.CAPTURE, ConsequenceKind.PROMOTION,
+        ConsequenceKind.CASTLING, ConsequenceKind.CHECK,
+    }
+    return tuple(
+        _account_event_clause(delta, event)
+        for event in account.consequences
+        if event.kind not in direct
+        and not displayed_sources.intersection(event.supporting_facts)
+    )
+
+
+def _candidate_piece_list(delta: MoveDelta, pieces: tuple) -> str:
+    return ", ".join(_candidate_piece_label(delta, piece) for piece in pieces)
+
+
+def _candidate_piece_label(delta: MoveDelta, piece_id) -> str:
+    return _account_piece_label(delta, piece_id)
+
+
 def _render_material_exposure(exposure, catalog: ExplanationCatalog) -> str:
     model = catalog.render(Explanation("", f"assessment.material_model.{exposure.model}"))
     return catalog.render(Explanation(
@@ -240,9 +361,23 @@ def _delta_text(
 ) -> str:
     catalog = catalog or _load_catalog()
     moved = delta.moved
-    parts = [
-        f"{delta.san}: {moved.before.piece_type} {moved.before.square}→{moved.after.square}"
-    ]
+    parts = [f"{delta.san}: {moved.before.piece_type} {moved.before.square}→{moved.after.square}"]
+    parts.extend(_direct_effects(delta))
+
+    facts = _account_changes(delta, account, covered_sources)
+    if account is not None and account.omitted_count:
+        facts = (*facts, _catalog_text(
+            catalog, "cli.move_account_omitted", (("count", account.omitted_count),),
+        ))
+    if detailed:
+        raw = _relationship_changes(delta, catalog)
+        return "\n".join(("; ".join(parts), *facts, *(('Raw changes:', *raw) if raw else ())))
+    return "; ".join((*parts, *facts))
+
+
+def _direct_effects(delta: MoveDelta) -> tuple[str, ...]:
+    moved = delta.moved
+    parts = []
     if delta.captured is not None:
         captured = delta.captured
         parts.append(f"captured {captured.piece_type} on {captured.square}")
@@ -253,15 +388,7 @@ def _delta_text(
         parts.append(f"promoted to {moved.after.piece_type}")
     if delta.gives_check:
         parts.append("gives check")
-    facts = _account_changes(delta, account, covered_sources)
-    if account is not None and account.omitted_count:
-        facts = (*facts, _catalog_text(
-            catalog, "cli.move_account_omitted", (("count", account.omitted_count),),
-        ))
-    if detailed:
-        raw = _relationship_changes(delta, catalog)
-        return "\n".join(("; ".join(parts), *facts, *(('Raw changes:', *raw) if raw else ())))
-    return "; ".join((*parts, *facts))
+    return tuple(parts)
 
 
 def _account_changes(
@@ -277,28 +404,31 @@ def _account_changes(
     for event in account.consequences:
         if event.kind in direct or covered_sources.intersection(event.supporting_facts):
             continue
-        subject = _account_piece_label(delta, event.subject)
-        related = _account_piece_label(delta, event.related_piece)
-        actor = _account_piece_label(delta, event.actor)
-        relationship = _account_relationship(delta, event)
-        if event.kind is ConsequenceKind.LOST_DEFENSE:
-            changes.append(f"{subject} is now unguarded")
-        elif event.kind is ConsequenceKind.PINNED:
-            changes.append(f"{subject} is pinned to {related}")
-        elif event.kind is ConsequenceKind.UNPINNED:
-            changes.append(f"{subject} is no longer pinned to {related}")
-        elif event.kind is ConsequenceKind.OPENED_LINE:
-            changes.append(f"opens {actor}'s line {relationship} {subject}")
-        elif event.kind is ConsequenceKind.BLOCKED_LINE:
-            changes.append(f"blocks {actor}'s line {relationship} {subject}")
-        elif event.kind is ConsequenceKind.GAINED_CONTROL:
-            changes.append(
-                f"{actor} now {relationship} {subject}"
-                if event.subject is not None else f"{actor} now controls {event.target.square}"
-            )
-        elif event.kind is ConsequenceKind.LOST_CONTROL:
-            changes.append(f"{actor} no longer {relationship} {subject}")
+        changes.append(_account_event_clause(delta, event))
     return tuple(changes)
+
+
+def _account_event_clause(delta: MoveDelta, event) -> str:
+    subject = _account_piece_label(delta, event.subject)
+    related = _account_piece_label(delta, event.related_piece)
+    actor = _account_piece_label(delta, event.actor)
+    relationship = _account_relationship(delta, event)
+    if event.kind is ConsequenceKind.LOST_DEFENSE:
+        return f"{subject} is now unguarded"
+    if event.kind is ConsequenceKind.PINNED:
+        return f"{subject} is pinned to {related}"
+    if event.kind is ConsequenceKind.UNPINNED:
+        return f"{subject} is no longer pinned to {related}"
+    if event.kind is ConsequenceKind.OPENED_LINE:
+        return f"opens {actor}'s line {relationship} {subject}"
+    if event.kind is ConsequenceKind.BLOCKED_LINE:
+        return f"blocks {actor}'s line {relationship} {subject}"
+    if event.kind is ConsequenceKind.GAINED_CONTROL:
+        return (
+            f"{actor} now {relationship} {subject}"
+            if event.subject is not None else f"{actor} now controls {event.target.square}"
+        )
+    return f"{actor} no longer {relationship} {subject}"
 
 
 def _account_piece_label(delta: MoveDelta, piece_id) -> str:
