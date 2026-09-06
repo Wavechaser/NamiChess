@@ -15,7 +15,7 @@ _FIELDS = {
     "position.in_check": set(),
     "position.mate_in_one": set(),
     "candidate.allows_opponent_mate_in_one": {"reply_count"},
-    "line.capture": {"san", "material_delta_white"},
+    "line.capture": {"san", "captured_color", "captured_piece_type", "material_delta_white"},
     "line.check": {"san"},
     "cli.no_previous_move": set(),
     "cli.candidate_line_root": set(),

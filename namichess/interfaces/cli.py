@@ -156,7 +156,7 @@ def render_details(result: AnalysisResult, number: int, catalog: ExplanationCata
             if consequence.promotion is not None:
                 detail += f"; promotes to {consequence.promotion}"
             if consequence.material_delta_white:
-                detail += f"; White material change {consequence.material_delta_white:+d}"
+                detail += f"; material Δ {consequence.material_delta_white:+d} (White)"
             if consequence.gives_check:
                 detail += " and gives check"
             lines.append(f"{consequence.ply}. {detail}")

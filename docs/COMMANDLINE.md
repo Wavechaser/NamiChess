@@ -109,6 +109,13 @@ from its certified rank. Scores use White's perspective and state that positive
 favors White and negative favors Black. Survey and focused-probe evidence remain
 separate, including their scores and bounds.
 
+Line material deltas also use a fixed White perspective: a White capture gives
+a positive delta, while the corresponding Black capture gives a negative delta.
+The compact text names the captured piece and labels this perspective; White-only
+field names do not imply White-only analysis. Capture-promotion deltas include
+both captured material and the promotion gain. Local exchange results retain
+their separately declared perspective. Board flipping changes neither value.
+
 The analysis package also provides bounded target-square exchange evaluation for
 integrated local exploration. It reports `completed`, `unsupported`, or
 `incomplete`; only a completed result has a material value. That value uses the

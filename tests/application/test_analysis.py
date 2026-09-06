@@ -357,7 +357,48 @@ def test_catalog_placeholders_match_typed_explanation_values() -> None:
     catalog = json.loads((Path(__file__).parents[2] / "namichess" / "content" / "explanations.json").read_text())
     assert "{winner}" in catalog["engine.reported_mate"]
     assert "{moves}" in catalog["engine.reported_mate"]
-    assert "{material_delta_white}" in catalog["line.capture"]
+    assert "{material_delta_white:+d}" in catalog["line.capture"]
+
+
+@pytest.mark.parametrize(
+    ("fen", "uci", "captured_color", "captured_type", "white_delta"),
+    (
+        ("7k/8/8/3p4/4P3/8/8/K7 w - - 0 1", "e4d5", "black", "pawn", 1),
+        ("7k/8/8/4p3/3P4/8/8/K7 b - - 0 1", "e5d4", "white", "pawn", -1),
+        ("1r5k/P7/8/8/8/8/8/K7 w - - 0 1", "a7b8q", "black", "rook", 13),
+        ("k7/8/8/8/8/8/7p/K5R1 b - - 0 1", "h2g1q", "white", "rook", -13),
+    ),
+)
+def test_capture_explanation_names_current_piece_and_keeps_white_perspective(
+    fen, uci, captured_color, captured_type, white_delta,
+) -> None:
+    position = context(fen)
+    _, explanations, _ = analysis_module._assemble(
+        1, 1, parse_fen(fen), position, (uci,), {uci: candidate(uci, 0)}, (),
+    )
+    capture = next(item for item in explanations if item.catalog_id == "line.capture")
+    assert dict(capture.values) == {
+        "san": parse_fen(fen).san(chess.Move.from_uci(uci)),
+        "captured_color": captured_color,
+        "captured_piece_type": captured_type,
+        "material_delta_white": white_delta,
+    }
+
+
+def test_capture_explanation_uses_promoted_piece_current_type() -> None:
+    starting_fen = "1rk5/P7/8/8/8/8/8/K7 w - - 0 1"
+    board = parse_fen(starting_fen)
+    board.push_uci("a7b8q")
+    position = PositionContext(
+        1, 1, (0,), starting_fen, ("a7b8q",), board.fen(en_passant="fen"), True,
+    )
+    _, explanations, _ = analysis_module._assemble(
+        1, 1, board, position, ("c8b8",), {"c8b8": candidate("c8b8", 0)}, (),
+    )
+    capture = next(item for item in explanations if item.catalog_id == "line.capture")
+    assert ("captured_piece_type", "queen") in capture.values
+    captured_id = capture.pieces[1]
+    assert captured_id.original_piece_type == "pawn"
 
 
 def test_rapid_supersession_cancels_running_search_and_rejects_late_progress() -> None:

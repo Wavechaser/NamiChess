@@ -473,8 +473,22 @@ def _assemble(request_id: int, revision: int, board: chess.Board, context: Posit
             refs.append(evidence_id)
             for consequence in consequences:
                 if consequence.capture is not None:
+                    assert consequence.captured_color is not None
+                    assert consequence.captured_piece_type is not None
                     eid = f"{candidate_id}:ply-{consequence.ply}:capture"
-                    explanations.append(Explanation(eid, "line.capture", (("san", consequence.san), ("material_delta_white", consequence.material_delta_white)), pieces=(consequence.mover, consequence.capture), moves=(consequence.uci,), evidence_refs=(evidence_id,)))
+                    explanations.append(Explanation(
+                        eid,
+                        "line.capture",
+                        (
+                            ("san", consequence.san),
+                            ("captured_color", consequence.captured_color),
+                            ("captured_piece_type", consequence.captured_piece_type),
+                            ("material_delta_white", consequence.material_delta_white),
+                        ),
+                        pieces=(consequence.mover, consequence.capture),
+                        moves=(consequence.uci,),
+                        evidence_refs=(evidence_id,),
+                    ))
                     exrefs.append(eid)
                 if consequence.gives_check:
                     eid = f"{candidate_id}:ply-{consequence.ply}:check"

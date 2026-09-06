@@ -21,7 +21,7 @@ from namichess.analysis.assessments import (
     EvidenceRef, MaterialExposure, TrappingAssessment,
 )
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult, Coverage
-from namichess.domain.models import PieceId, SquareRef
+from namichess.domain.models import PieceId, PositionId, SquareRef
 from namichess.interfaces.explanations import ExplanationCatalog
 from namichess.interfaces.orientation import BoardDisplayState, Orientation, ResolvedOrientation
 from namichess.interfaces.settings import SettingsStore
@@ -310,7 +310,11 @@ def test_invalid_large_counter_keeps_session_and_cli_running() -> None:
 def test_text_and_json_share_current_analysis_candidate() -> None:
     session = Session()
     view = session.load_fen("7k/8/8/8/8/8/8/K7 w - - 0 1")
-    capture = Explanation("capture", "line.capture", (("san", "Kxa2"), ("material_delta_white", 1)))
+    capture = Explanation(
+        "capture", "line.capture",
+        (("san", "Kxa2"), ("captured_color", "black"),
+         ("captured_piece_type", "pawn"), ("material_delta_white", 1)),
+    )
     mate = Explanation("mate", "candidate.allows_opponent_mate_in_one", (("reply_count", 1),))
     candidate = CandidateResult(
         "candidate:a1a2", view.position.position_id, "a1a2", "Ka2", "white", 1,
@@ -324,8 +328,8 @@ def test_text_and_json_share_current_analysis_candidate() -> None:
     text = render_analysis(result, CATALOG)
     payload = json.loads(render_json(shared))
     assert "Ka2" in text and "+0.00" in text
-    assert "Fact: [Ka2] After this candidate" in text
-    assert text.split("#  Rank", 1)[1].count("After this candidate") == 1
+    assert "Fact: [Ka2] After this move" in text
+    assert text.split("#  Rank", 1)[1].count("After this move") == 1
     assert payload["schema_version"] == 2
     assert payload["analysis"]["candidates"][0]["candidate_id"] == "candidate:a1a2"
     assert payload["analysis"]["candidates"][0]["score"]["centipawns"] == 0
@@ -342,7 +346,35 @@ def test_concise_analysis_prioritizes_engine_mate_within_three_facts() -> None:
         AnalysisResult(1, 1, AnalysisState.COMPLETED, explanations=explanations), CATALOG,
     )
     assert output.count("Fact:") == 3
-    assert "Stockfish reports that White mates in 2 moves" in output
+    assert "Stockfish reports White mates in 2 moves" in output
+
+
+@pytest.mark.parametrize(
+    ("mover", "san", "captured_color", "captured_type", "white_delta"),
+    (
+        ("white", "exd5", "black", "pawn", 1),
+        ("black", "exd4", "white", "pawn", -1),
+        ("white", "axb8=Q+", "black", "rook", 13),
+        ("black", "hxg1=Q+", "white", "rook", -13),
+    ),
+)
+def test_capture_summary_keeps_white_perspective_for_both_movers(
+    mover, san, captured_color, captured_type, white_delta,
+) -> None:
+    explanation = Explanation(
+        "capture", "line.capture",
+        (("san", san), ("captured_color", captured_color),
+         ("captured_piece_type", captured_type), ("material_delta_white", white_delta)),
+    )
+    candidate = CandidateResult(
+        "candidate", PositionId(1, 1, ()), "a1a2", san, mover, 1,
+        EngineScore(0, None, None, ScoreBound.EXACT), (), False, ("capture",), (),
+    )
+    output = render_analysis(
+        AnalysisResult(1, 1, AnalysisState.COMPLETED, (candidate,), (explanation,)), CATALOG,
+    )
+    assert f"Line: {san} captures {captured_color} {captured_type}" in output
+    assert f"material Δ {white_delta:+d} (White)" in output
 
 
 def test_redirected_input_waits_for_latest_analysis_and_closes() -> None:
@@ -419,7 +451,7 @@ def test_details_render_recapture_promotion_and_material_change() -> None:
     output = render_details(result, 1, CATALOG)
     assert "recapture" in output
     assert "promotes to queen" in output
-    assert "White material change +13" in output
+    assert "material Δ +13 (White)" in output
     assert "gives check" in output
     assert "Probe score: +1.00" in output
     assert "Continuation: 1. a8=Q+" in output
