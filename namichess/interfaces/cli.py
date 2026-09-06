@@ -46,6 +46,7 @@ def configure_standard_streams() -> None:
 def render_board(
     view: SessionView,
     orientation: ResolvedOrientation = ResolvedOrientation.WHITE,
+    catalog: ExplanationCatalog | None = None,
 ) -> str:
     lines = list(_oriented_board_rows(view.board_rows, orientation))
     lines.append(f"Orientation: {orientation.value}")
@@ -61,7 +62,7 @@ def render_board(
     if claims:
         lines.append("Claimable: " + ", ".join(claims))
     if view.previous_move is not None:
-        lines.append(_delta_text(view.previous_move))
+        lines.append(_delta_text(view.previous_move, catalog=catalog))
     if view.analysis is not None:
         lines.extend(_analysis_summary(view.analysis))
     return "\n".join(lines)
@@ -216,6 +217,7 @@ def _delta_text(
     catalog: ExplanationCatalog | None = None,
     detailed: bool = False,
 ) -> str:
+    catalog = catalog or _load_catalog()
     moved = delta.moved
     parts = [
         f"Changed: {delta.san} — {moved.after.color} {moved.after.piece_type} "
@@ -453,7 +455,7 @@ def render_line_preview(
     lines = list(_oriented_board_rows(preview.board_rows, orientation))
     lines.extend([
         f"Candidate line: {preview.candidate.san} ({preview.candidate.uci}), ply {preview.ply}",
-        _delta_text(preview.previous_move) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root"),
+        _delta_text(preview.previous_move, catalog=catalog) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root"),
     ])
     return "\n".join(lines)
 
@@ -461,9 +463,11 @@ def render_line_preview(
 def _catalog_text(catalog: ExplanationCatalog | None, catalog_id: str) -> str:
     if catalog is not None:
         return catalog.render(Explanation("", catalog_id))
-    return ExplanationCatalog.load(
-        Path(__file__).parents[1] / "content" / "explanations.json"
-    ).render(Explanation("", catalog_id))
+    return _load_catalog().render(Explanation("", catalog_id))
+
+
+def _load_catalog() -> ExplanationCatalog:
+    return ExplanationCatalog.load(Path(__file__).parents[1] / "content" / "explanations.json")
 
 
 def execute(
@@ -490,22 +494,29 @@ def execute(
             raise SessionError("load requires a .pgn or .fen path")
         suffix, text = read_chess_file(argument)
         view = session.load_pgn(text) if suffix == ".pgn" else session.load_fen(text)
-        return _render_import(session, view, controller, display, settings_store, orientation_override, explicit_orientation), False
+        return _render_import(
+            session, view, controller, catalog, display, settings_store, orientation_override, explicit_orientation,
+        ), False
     if verb == "fen":
         explicit_orientation, argument = _import_orientation(argument)
         if not argument:
             raise SessionError("fen requires all six FEN fields")
         view = session.load_fen(argument)
-        return _render_import(session, view, controller, display, settings_store, orientation_override, explicit_orientation), False
+        return _render_import(
+            session, view, controller, catalog, display, settings_store, orientation_override, explicit_orientation,
+        ), False
     if verb == "games":
         return render_games(_shared_view(session, controller)), False
     if verb == "game":
-        return render_board(_submit(session, session.select_game(_positive_int(argument, "game")), controller), display.orientation), False
+        return render_board(
+            _submit(session, session.select_game(_positive_int(argument, "game")), controller),
+            display.orientation, catalog,
+        ), False
     if verb == "board":
-        return render_board(_shared_view(session, controller), display.orientation), False
+        return render_board(_shared_view(session, controller), display.orientation, catalog), False
     if verb == "flip":
         display.flip()
-        return render_board(_shared_view(session, controller), display.orientation), False
+        return render_board(_shared_view(session, controller), display.orientation, catalog), False
     if verb == "orientation":
         return _orientation_command(argument, display, settings_store), False
     if verb == "inspect":
@@ -517,31 +528,36 @@ def execute(
     if verb == "changes":
         return render_changes(_shared_view(session, controller), catalog), False
     if verb == "start":
-        return render_board(_submit(session, session.start(), controller), display.orientation), False
+        return render_board(_submit(session, session.start(), controller), display.orientation, catalog), False
     if verb == "end":
-        return render_board(_submit(session, session.end(), controller), display.orientation), False
+        return render_board(_submit(session, session.end(), controller), display.orientation, catalog), False
     if verb == "next":
-        return render_board(_submit(session, session.next(), controller), display.orientation), False
+        return render_board(_submit(session, session.next(), controller), display.orientation, catalog), False
     if verb == "back":
-        return render_board(_submit(session, session.back(), controller), display.orientation), False
+        return render_board(_submit(session, session.back(), controller), display.orientation, catalog), False
     if verb == "goto":
-        return render_board(_submit(session, session.goto(_nonnegative_int(argument, "ply")), controller), display.orientation), False
+        return render_board(
+            _submit(session, session.goto(_nonnegative_int(argument, "ply")), controller), display.orientation, catalog,
+        ), False
     if verb == "variations":
         view = _shared_view(session, controller)
         if not view.variations:
             return "No continuations from this position.", False
         return "\n".join(f"{index}: {san}" for index, san in enumerate(view.variations, 1)), False
     if verb == "variation":
-        return render_board(_submit(session, session.variation(_positive_int(argument, "variation")), controller), display.orientation), False
+        return render_board(
+            _submit(session, session.variation(_positive_int(argument, "variation")), controller),
+            display.orientation, catalog,
+        ), False
     if verb == "move":
         if not argument:
             raise SessionError("move requires SAN or UCI notation")
-        return render_board(_submit(session, session.play(argument), controller), display.orientation), False
+        return render_board(_submit(session, session.play(argument), controller), display.orientation, catalog), False
     if verb == "analyze":
         view = session.view()
         if controller is None:
             raise SessionError("analysis is not configured")
-        return render_board(session.request_analysis(controller, view=view), display.orientation), False
+        return render_board(session.request_analysis(controller, view=view), display.orientation, catalog), False
     if verb == "compare":
         notations = tuple(argument.split())
         if len(notations) != 2:
@@ -549,7 +565,9 @@ def execute(
         if controller is None:
             raise SessionError("analysis is not configured")
         view = session.view()
-        return render_board(session.request_analysis(controller, view=view, compare=notations), display.orientation), False
+        return render_board(
+            session.request_analysis(controller, view=view, compare=notations), display.orientation, catalog,
+        ), False
     if verb == "probe":
         kind, separator, value = argument.partition(" ")
         if controller is None:
@@ -558,7 +576,7 @@ def execute(
             raise SessionError("probe requires 'move <SAN-or-UCI>' or 'piece <square>'")
         subject = session.resolve_probe(kind, value.strip())
         return render_board(
-            session.request_probe(controller, subject, view=session.view()), display.orientation,
+            session.request_probe(controller, subject, view=session.view()), display.orientation, catalog,
         ), False
     if verb == "details":
         view = _shared_view(session, controller)
@@ -616,6 +634,7 @@ def _render_import(
     session: Session,
     view: SessionView,
     controller: AnalysisController | None,
+    catalog: ExplanationCatalog | None,
     display: BoardDisplayState,
     settings_store: SettingsStore | None,
     orientation_override: Orientation | None,
@@ -628,7 +647,7 @@ def _render_import(
         preference = loaded.settings.orientation
         message = loaded.message
     display.apply_import(preference or DEFAULT_ORIENTATION, view.turn)
-    output = render_board(_submit(session, view, controller), display.orientation)
+    output = render_board(_submit(session, view, controller), display.orientation, catalog)
     return output if message is None else output + f"\nSettings: {message}"
 
 

@@ -13,6 +13,7 @@ from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
 from namichess.application.session import Session, SessionError
+from namichess.application.preview import preview_candidate_line
 from namichess.application.imports import ImportError as ChessImportError
 from namichess.analysis.engine import EngineCandidate, EngineProgress, EngineReport, EngineScore, EngineStatus, ScoreBound
 from namichess.analysis.evidence import Evidence, Explanation, LineConsequence
@@ -25,7 +26,10 @@ from namichess.domain.models import PieceId, PositionId, SquareRef
 from namichess.interfaces.explanations import ExplanationCatalog
 from namichess.interfaces.orientation import BoardDisplayState, Orientation, ResolvedOrientation
 from namichess.interfaces.settings import SettingsStore
-from namichess.interfaces.cli import execute, execute_async, render_analysis, render_details, render_json, run_cli
+from namichess.interfaces.cli import (
+    execute, execute_async, render_analysis, render_board, render_changes, render_details,
+    render_json, render_line_preview, run_cli,
+)
 
 
 CATALOG = ExplanationCatalog.load(Path(__file__).parents[2] / "namichess" / "content" / "explanations.json")
@@ -196,6 +200,46 @@ def test_changes_names_removed_defenders_and_opened_relationships_after_e4() -> 
     assert "Contact removed: d1 white queen defends e2 white pawn" in output
     assert "Geometrically undefended after the move: e4 white pawn" in output
     assert "Latent slider ray removed: f1 white bishop nw, blocked by e2 white pawn" in output
+
+
+def test_board_changes_and_preview_load_at_most_one_fallback_catalog_and_reuse_injected_catalog(
+    monkeypatch,
+) -> None:
+    session = Session()
+    session.load_fen(chess.STARTING_FEN)
+    session.play("e4")
+    view = session.view()
+    candidate = CandidateResult(
+        "candidate:e7e5", view.position.position_id, "e7e5", "e5", "black", 1,
+        None, ("e7e5",), False, (), (),
+    )
+    shared = dataclasses.replace(
+        view, analysis=AnalysisResult(7, view.revision, AnalysisState.COMPLETED, (candidate,)),
+    )
+    preview = preview_candidate_line(shared, 1, 1)
+    loads = 0
+
+    def load_catalog() -> ExplanationCatalog:
+        nonlocal loads
+        loads += 1
+        return CATALOG
+
+    monkeypatch.setattr("namichess.interfaces.cli._load_catalog", load_catalog)
+
+    standalone_board = render_board(view)
+    assert loads == 1
+    standalone_changes = render_changes(view)
+    assert loads == 2
+    standalone_preview = render_line_preview(preview)
+    assert loads == 3
+
+    assert render_board(view, catalog=CATALOG) == standalone_board
+    assert render_changes(view, CATALOG) == standalone_changes
+    assert render_line_preview(preview, CATALOG) == standalone_preview
+    controller = type("Controller", (), {"latest": shared.analysis})()
+    execute(session, "board", controller=controller, catalog=CATALOG)
+    execute(session, "line 1 1", controller=controller, catalog=CATALOG)
+    assert loads == 3
 
 
 def test_changes_names_an_added_absolute_pin() -> None:
