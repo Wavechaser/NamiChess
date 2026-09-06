@@ -21,6 +21,13 @@ Choose another local Stockfish executable explicitly:
 namichess --engine 'C:\Chess\stockfish.exe'
 ```
 
+Choose an orientation for imports in this process; a command-level import choice
+still takes precedence:
+
+```powershell
+namichess --orientation turn
+```
+
 NamiChess starts Stockfish lazily when a searchable position is loaded. It does
 not download an engine or use a remote service. The fixed M1 budget is five
 seconds per request: at most one second surveys five roots, then focused probes
@@ -66,11 +73,15 @@ decode output as UTF-8.
 
 | Command | Result |
 |---|---|
-| `load <path>` | Load one `.fen` position or one or more `.pgn` games. The path is the complete remainder of the command. One matching pair of single or double quotes is removed. |
-| `fen <six-field FEN>` | Load one root-only composed or ordinary standard-chess position. |
+| `load [--orientation <white\|black\|turn>] <path>` | Load one `.fen` position or one or more `.pgn` games. The path is the complete remainder of the command. One matching pair of single or double quotes is removed. |
+| `fen [--orientation <white\|black\|turn>] <six-field FEN>` | Load one root-only composed or ordinary standard-chess position. |
 | `games` | List loaded games and mark the selected game. |
 | `game <n>` | Select the one-based game and its final mainline node. |
 | `board` | Show the ASCII board, coordinates, turn, terminal/draw state, latest current-revision analysis state, and the prior move change when available. |
+| `flip` | Reverse this CLI's board display without changing the position, analysis request, revision, or saved default. |
+| `orientation` | Show the current local orientation and the saved default. |
+| `orientation <white\|black>` | Set this CLI's current orientation without saving it. |
+| `orientation default <white\|black\|turn>` | Persist the orientation used by later imports that lack a command or process override. |
 | `start` | Select the imported root position. |
 | `end` | Follow child zero from the selected node to the end of that line. |
 | `next` | Select child zero from the current node. |
@@ -93,6 +104,13 @@ including provisional or unranked candidates. A candidate's number is separate
 from its certified rank. Scores use White's perspective and state that positive
 favors White and negative favors Black. Survey and focused-probe evidence remain
 separate, including their scores and bounds.
+
+Import orientation resolves in this order: command-level `--orientation`, the
+process-level option, then the saved default. `turn` resolves once from the
+newly loaded root; navigating a game does not turn the display again. The saved
+setting is reloaded on each unoverridden import. If it is malformed, NamiChess
+uses White at the bottom, reports the fallback, and leaves the settings file
+untouched.
 
 ## Input and file rules
 

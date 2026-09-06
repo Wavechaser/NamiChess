@@ -26,7 +26,9 @@ from namichess.application.views import SessionView
 from namichess.interfaces.explanations import ExplanationCatalog
 from namichess.domain.models import PiecePlacement
 from namichess.interfaces.files import read_chess_file
+from namichess.interfaces.orientation import BoardDisplayState, Orientation, ResolvedOrientation
 from namichess.interfaces.serialization import serialize_session_view
+from namichess.interfaces.settings import DEFAULT_ORIENTATION, SettingsError, SettingsStore
 
 MAX_COMMAND_CHARS = 16 * 1024
 
@@ -39,8 +41,12 @@ def configure_standard_streams() -> None:
             reconfigure(encoding="utf-8", errors="strict")
 
 
-def render_board(view: SessionView) -> str:
-    lines = list(view.board_rows)
+def render_board(
+    view: SessionView,
+    orientation: ResolvedOrientation = ResolvedOrientation.WHITE,
+) -> str:
+    lines = list(_oriented_board_rows(view.board_rows, orientation))
+    lines.append(f"Orientation: {orientation.value}")
     lines.append(f"Turn: {view.turn}")
     lines.append(f"Status: {view.status.value}")
     if view.outcome:
@@ -57,6 +63,18 @@ def render_board(view: SessionView) -> str:
     if view.analysis is not None:
         lines.extend(_analysis_summary(view.analysis))
     return "\n".join(lines)
+
+
+def _oriented_board_rows(
+    rows: tuple[str, ...], orientation: ResolvedOrientation,
+) -> tuple[str, ...]:
+    if orientation is ResolvedOrientation.WHITE:
+        return rows
+    board_rows = []
+    for row in reversed(rows[:8]):
+        rank, cells = row.split(" ", 1)
+        board_rows.append(f"{rank} " + " ".join(reversed(cells.split())))
+    return tuple(board_rows + ["  h g f e d c b a"])
 
 
 def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
@@ -279,30 +297,42 @@ def execute(
     *,
     controller: AnalysisController | None = None,
     catalog: ExplanationCatalog | None = None,
+    display_state: BoardDisplayState | None = None,
+    settings_store: SettingsStore | None = None,
+    orientation_override: Orientation | None = None,
 ) -> tuple[str, bool]:
+    display = display_state or BoardDisplayState()
     if len(command) > MAX_COMMAND_CHARS:
         raise SessionError(f"command exceeds {MAX_COMMAND_CHARS} characters")
     verb, separator, remainder = command.strip().partition(" ")
     verb = verb.lower()
     argument = remainder.strip() if separator else ""
     if verb == "load":
+        explicit_orientation, argument = _import_orientation(argument)
         if len(argument) >= 2 and argument[0] == argument[-1] and argument[0] in {'"', "'"}:
             argument = argument[1:-1]
         if not argument:
             raise SessionError("load requires a .pgn or .fen path")
         suffix, text = read_chess_file(argument)
         view = session.load_pgn(text) if suffix == ".pgn" else session.load_fen(text)
-        return render_board(_submit(session, view, controller)), False
+        return _render_import(session, view, controller, display, settings_store, orientation_override, explicit_orientation), False
     if verb == "fen":
+        explicit_orientation, argument = _import_orientation(argument)
         if not argument:
             raise SessionError("fen requires all six FEN fields")
-        return render_board(_submit(session, session.load_fen(argument), controller)), False
+        view = session.load_fen(argument)
+        return _render_import(session, view, controller, display, settings_store, orientation_override, explicit_orientation), False
     if verb == "games":
         return render_games(_shared_view(session, controller)), False
     if verb == "game":
-        return render_board(_submit(session, session.select_game(_positive_int(argument, "game")), controller)), False
+        return render_board(_submit(session, session.select_game(_positive_int(argument, "game")), controller), display.orientation), False
     if verb == "board":
-        return render_board(_shared_view(session, controller)), False
+        return render_board(_shared_view(session, controller), display.orientation), False
+    if verb == "flip":
+        display.flip()
+        return render_board(_shared_view(session, controller), display.orientation), False
+    if verb == "orientation":
+        return _orientation_command(argument, display, settings_store), False
     if verb == "inspect":
         try:
             square = chess.square_name(chess.parse_square(argument.lower()))
@@ -310,31 +340,31 @@ def execute(
             raise SessionError("inspect requires a square from a1 to h8") from exc
         return render_inspection(_shared_view(session, controller), square), False
     if verb == "start":
-        return render_board(_submit(session, session.start(), controller)), False
+        return render_board(_submit(session, session.start(), controller), display.orientation), False
     if verb == "end":
-        return render_board(_submit(session, session.end(), controller)), False
+        return render_board(_submit(session, session.end(), controller), display.orientation), False
     if verb == "next":
-        return render_board(_submit(session, session.next(), controller)), False
+        return render_board(_submit(session, session.next(), controller), display.orientation), False
     if verb == "back":
-        return render_board(_submit(session, session.back(), controller)), False
+        return render_board(_submit(session, session.back(), controller), display.orientation), False
     if verb == "goto":
-        return render_board(_submit(session, session.goto(_nonnegative_int(argument, "ply")), controller)), False
+        return render_board(_submit(session, session.goto(_nonnegative_int(argument, "ply")), controller), display.orientation), False
     if verb == "variations":
         view = _shared_view(session, controller)
         if not view.variations:
             return "No continuations from this position.", False
         return "\n".join(f"{index}: {san}" for index, san in enumerate(view.variations, 1)), False
     if verb == "variation":
-        return render_board(_submit(session, session.variation(_positive_int(argument, "variation")), controller)), False
+        return render_board(_submit(session, session.variation(_positive_int(argument, "variation")), controller), display.orientation), False
     if verb == "move":
         if not argument:
             raise SessionError("move requires SAN or UCI notation")
-        return render_board(_submit(session, session.play(argument), controller)), False
+        return render_board(_submit(session, session.play(argument), controller), display.orientation), False
     if verb == "analyze":
         view = session.view()
         if controller is None:
             raise SessionError("analysis is not configured")
-        return render_board(session.request_analysis(controller, view=view)), False
+        return render_board(session.request_analysis(controller, view=view), display.orientation), False
     if verb == "compare":
         notations = tuple(argument.split())
         if len(notations) != 2:
@@ -342,7 +372,7 @@ def execute(
         if controller is None:
             raise SessionError("analysis is not configured")
         view = session.view()
-        return render_board(session.request_analysis(controller, view=view, compare=notations)), False
+        return render_board(session.request_analysis(controller, view=view, compare=notations), display.orientation), False
     if verb == "details":
         view = _shared_view(session, controller)
         if catalog is None or view.analysis is None or view.analysis.revision != view.revision:
@@ -358,11 +388,82 @@ def execute(
         return (
             "load <path> | fen <FEN> | games | game <n> | board | start | end | "
             "next | back | goto <ply> | variations | variation <n> | move <SAN-or-UCI> | "
-            "inspect <square> | analyze | compare <move> <move> | details <n> | json | cancel | quit"
+            "inspect <square> | flip | orientation [white|black|default <white|black|turn>] | "
+            "analyze | compare <move> <move> | details <n> | json | cancel | quit"
         ), False
     if not verb:
         return "", False
     raise SessionError(f"unknown command {verb!r}; use help to list commands")
+
+
+def _import_orientation(argument: str) -> tuple[Orientation | None, str]:
+    if not argument.startswith("--orientation"):
+        return None, argument
+    option, separator, remainder = argument.partition(" ")
+    if option != "--orientation" or not separator:
+        raise SessionError("--orientation requires white, black, or turn followed by an import")
+    value, separator, remainder = remainder.strip().partition(" ")
+    if not separator or not remainder.strip():
+        raise SessionError("--orientation requires white, black, or turn followed by an import")
+    try:
+        return Orientation(value), remainder.strip()
+    except ValueError as exc:
+        raise SessionError("--orientation must be white, black, or turn") from exc
+
+
+def _render_import(
+    session: Session,
+    view: SessionView,
+    controller: AnalysisController | None,
+    display: BoardDisplayState,
+    settings_store: SettingsStore | None,
+    orientation_override: Orientation | None,
+    explicit_orientation: Orientation | None,
+) -> str:
+    message = None
+    preference = explicit_orientation or orientation_override
+    if preference is None and settings_store is not None:
+        loaded = settings_store.load()
+        preference = loaded.settings.orientation
+        message = loaded.message
+    display.apply_import(preference or DEFAULT_ORIENTATION, view.turn)
+    output = render_board(_submit(session, view, controller), display.orientation)
+    return output if message is None else output + f"\nSettings: {message}"
+
+
+def _orientation_command(
+    argument: str,
+    display: BoardDisplayState,
+    settings_store: SettingsStore | None,
+) -> str:
+    if not argument:
+        if settings_store is None:
+            return f"Orientation: {display.orientation.value}; saved default: {DEFAULT_ORIENTATION.value}"
+        loaded = settings_store.load()
+        default = loaded.settings.orientation
+        if loaded.message is not None:
+            return (
+                f"Orientation: {display.orientation.value}; default fallback: {default.value}"
+                f"\nSettings: {loaded.message}"
+            )
+        return f"Orientation: {display.orientation.value}; saved default: {default.value}"
+    if argument.startswith("default "):
+        if settings_store is None:
+            raise SessionError("settings are not configured")
+        try:
+            preference = Orientation(argument.removeprefix("default ").strip())
+        except ValueError as exc:
+            raise SessionError("orientation default must be white, black, or turn") from exc
+        try:
+            settings_store.save_orientation(preference)
+        except SettingsError as exc:
+            raise SessionError(str(exc)) from exc
+        return f"Saved orientation default: {preference.value}"
+    try:
+        display.set_orientation(ResolvedOrientation(argument))
+    except ValueError as exc:
+        raise SessionError("orientation must be white, black, or default <white|black|turn>") from exc
+    return f"Orientation: {display.orientation.value}"
 
 
 def _submit(session: Session, view: SessionView, controller: AnalysisController | None) -> SessionView:
@@ -381,6 +482,9 @@ async def execute_async(
     *,
     controller: AnalysisController | None = None,
     catalog: ExplanationCatalog | None = None,
+    display_state: BoardDisplayState | None = None,
+    settings_store: SettingsStore | None = None,
+    orientation_override: Orientation | None = None,
 ) -> tuple[str, bool]:
     if command.strip().lower() == "cancel":
         if controller is None:
@@ -389,7 +493,10 @@ async def execute_async(
             return "No analysis is running.", False
         await controller.cancel()
         return "Analysis canceled.", False
-    return execute(session, command, controller=controller, catalog=catalog)
+    return execute(
+        session, command, controller=controller, catalog=catalog, display_state=display_state,
+        settings_store=settings_store, orientation_override=orientation_override,
+    )
 
 
 async def run_cli(
@@ -397,6 +504,9 @@ async def run_cli(
     *,
     controller: AnalysisController | None = None,
     catalog: ExplanationCatalog | None = None,
+    display_state: BoardDisplayState | None = None,
+    settings_store: SettingsStore | None = None,
+    orientation_override: Orientation | None = None,
     stdin: TextIO = sys.stdin,
     stdout: TextIO = sys.stdout,
     stderr: TextIO = sys.stderr,
@@ -407,6 +517,7 @@ async def run_cli(
     owned_input = create_input(stdin=stdin) if interactive and prompt_input is None else None
     actual_input = prompt_input or owned_input
     actual_output = prompt_output or (create_output(stdout=stdout) if interactive else None)
+    display = display_state or BoardDisplayState()
     quit_requested = False
     reporter = (
         asyncio.create_task(_report_analysis(controller, catalog, session, stdout, stderr))
@@ -426,7 +537,10 @@ async def run_cli(
                         if not line:
                             break
                         command = line.rstrip("\r\n")
-                    output, should_quit = await execute_async(session, command, controller=controller, catalog=catalog)
+                    output, should_quit = await execute_async(
+                        session, command, controller=controller, catalog=catalog, display_state=display,
+                        settings_store=settings_store, orientation_override=orientation_override,
+                    )
                     if output:
                         print(output, file=stdout)
                     if should_quit:

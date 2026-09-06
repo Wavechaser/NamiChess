@@ -12,11 +12,14 @@ from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
 from namichess.application.session import Session, SessionError
+from namichess.application.imports import ImportError as ChessImportError
 from namichess.analysis.engine import EngineCandidate, EngineProgress, EngineReport, EngineScore, EngineStatus, ScoreBound
 from namichess.analysis.evidence import Evidence, Explanation, LineConsequence
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult, Coverage
 from namichess.domain.models import PieceId, SquareRef
 from namichess.interfaces.explanations import ExplanationCatalog
+from namichess.interfaces.orientation import BoardDisplayState, Orientation, ResolvedOrientation
+from namichess.interfaces.settings import SettingsStore
 from namichess.interfaces.cli import execute, execute_async, render_analysis, render_details, render_json, run_cli
 
 
@@ -56,6 +59,66 @@ def test_cli_fen_board_move_and_navigation_transcript() -> None:
     assert "Changed: Ka2 — white king a1→a2" in output
     output, _ = execute(session, "back")
     assert "Turn: white" in output
+
+
+def test_cli_orientation_persists_defaults_but_local_flips_do_not_change_chess_state(tmp_path) -> None:
+    settings = SettingsStore(tmp_path / "NamiChess" / "settings.json")
+    settings.save_orientation(Orientation.TURN)
+    session = Session()
+    display = BoardDisplayState()
+    output, _ = execute(
+        session, "fen 7k/8/8/8/8/8/8/K7 b - - 0 1",
+        display_state=display, settings_store=settings,
+    )
+    assert output.startswith("1 . . . . . . . K")
+    assert "Orientation: black" in output
+    revision = session.view().revision
+    canonical = render_json(session.view())
+    output, _ = execute(session, "flip", display_state=display, settings_store=settings)
+    assert output.startswith("8 . . . . . . . k")
+    assert display.orientation is ResolvedOrientation.WHITE
+    assert session.view().revision == revision
+    assert render_json(session.view()) == canonical
+    execute(session, "orientation default black", display_state=display, settings_store=settings)
+    assert display.orientation is ResolvedOrientation.WHITE
+    output, _ = execute(
+        session, "fen 7k/8/8/8/8/8/8/K7 w - - 0 1",
+        display_state=display, settings_store=settings,
+    )
+    assert "Orientation: black" in output
+
+
+def test_cli_import_orientation_precedence_and_failed_import_keep_display_state(tmp_path) -> None:
+    settings = SettingsStore(tmp_path / "settings.json")
+    settings.save_orientation(Orientation.BLACK)
+    session = Session()
+    display = BoardDisplayState()
+    output, _ = execute(
+        session, "fen 7k/8/8/8/8/8/8/K7 b - - 0 1",
+        display_state=display, settings_store=settings, orientation_override=Orientation.TURN,
+    )
+    assert "Orientation: black" in output
+    output, _ = execute(
+        session, "fen --orientation white 7k/8/8/8/8/8/8/K7 b - - 0 1",
+        display_state=display, settings_store=settings, orientation_override=Orientation.TURN,
+    )
+    assert "Orientation: white" in output
+    assert "saved default: black" in execute(
+        session, "orientation", display_state=display, settings_store=settings,
+    )[0]
+    with pytest.raises(ChessImportError):
+        execute(session, "fen --orientation black invalid", display_state=display, settings_store=settings)
+    assert display.orientation is ResolvedOrientation.WHITE
+
+
+def test_cli_orientation_reports_invalid_saved_settings_without_claiming_it_is_saved(tmp_path) -> None:
+    path = tmp_path / "settings.json"
+    path.write_text("{", encoding="utf-8")
+    output, _ = execute(
+        Session(), "orientation", display_state=BoardDisplayState(), settings_store=SettingsStore(path),
+    )
+    assert "default fallback: white" in output
+    assert "valid UTF-8 JSON" in output
 
 
 def test_cli_games_lists_fen_as_one_game() -> None:

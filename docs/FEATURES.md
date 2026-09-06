@@ -127,7 +127,7 @@ engine line.
 
 ## Board appearance
 
-- Planned for M2: persist one shared default of White, Black, or the imported
+- M2 persists one shared default of White, Black, or the imported
   position's side to move at the bottom. CLI and future GUI imports without an
   explicit override resolve this same setting, preventing adapter defaults from
   drifting. Each interface may flip locally during analysis.

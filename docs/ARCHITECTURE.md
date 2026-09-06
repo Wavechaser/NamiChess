@@ -132,6 +132,11 @@ changes do not reinterpret prior results.
 User settings live in versioned UTF-8 `settings.json`, separate from games and
 analysis. Writes use temporary-file replacement. Invalid settings produce a
 visible fallback while preserving the invalid file for recovery.
+M2 currently stores only the orientation default (`white`, `black`, or `turn`)
+in schema version 1. The composition root creates this interface storage at
+`%LOCALAPPDATA%\NamiChess\settings.json`; adapters receive the store rather than
+constructing operating-system paths. Each import reloads the default when no
+explicit import or process override is present. Local flips remain adapter state.
 Appearance preferences such as the selected piece theme share the settings file
 but remain separate from `AnalysisPreferences` and never affect `AnalysisPolicy`.
 

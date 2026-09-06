@@ -4,6 +4,11 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 shared orientation — 2026-09-06
+
+- Added one versioned shared orientation default, local CLI board flipping, and
+  import/process overrides without changing canonical position or analysis state.
+
 ### M2 shared interface contract — 2026-09-06
 
 - Extracted schema-version-1 snapshot serialization from CLI rendering into an

@@ -1,6 +1,6 @@
 # M2 Implementation Plan — Continuity and Local Tactical Understanding
 
-Status: active. M2.01 is accepted; M2.02 and M2.03 are in progress.
+Status: active. M2.01 is committed; M2.02 and M2.03 have passed independent review; M2.04/M2.05 are in progress.
 
 ## Main objectives
 
@@ -48,8 +48,8 @@ Static relationships remain usable without an engine. Local search belongs to th
 | ID | Accepted outcome | Depends on | Primary verification | Status |
 |---|---|---|---|---|
 | M2.01 | Explicit M2 contracts and shared serialization boundary | — | Serializer characterization and ordinary suite | complete |
-| M2.02 | Shared orientation defaults and local CLI flipping | M2.01 | Settings round trips and orientation invariance | pending |
-| M2.03 | Complete structural move continuity | M2.01 | Named mirrored relationship fixtures | pending |
+| M2.02 | Shared orientation defaults and local CLI flipping | M2.01 | Settings round trips and orientation invariance | complete |
+| M2.03 | Complete structural move continuity | M2.01 | Named mirrored relationship fixtures | review passed; commit pending |
 | M2.04 | Bounded, legality-aware local exchange evidence | M2.03 | Exchange fixtures and unsupported cases | pending |
 | M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | pending |
 | M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | pending |
@@ -64,6 +64,10 @@ This register is the completion denominator. New findings are recorded separatel
 |---|---|---|---|
 | M2.01 | Builder focused verification | Shared serializer and CLI characterization: 21 passed; the first run's missing `.tmp` parent caused one setup error before an explicit workspace temp directory was used | Serializer behavior green; independent review pending |
 | M2.01 | Independent reviewer `review_contracts` | Missing terminal/promotion characterization and duplicated architecture sentence | Fixed and independently rechecked: 22 focused passed; ordinary review run 174 passed, 10 skipped; no remaining blockers |
+| M2.02 | Independent reviewer `exchange` | 36 focused tests and cross-instance settings/import/flip counterexamples passed | Accepted; empty LOCALAPPDATA fallback tightened to prevent working-directory user data |
+| M2.03 | Independent reviewer `review_contracts` | Missing exact special-move relationship tests, mirrors, and above-engine-limit fixture | Added named mirrored assertions and 48-piece fixture; reviewer became test builder and did not approve own changes |
+| M2.03 | Independent reviewer `orientation` | Independently checked identities, geometry, special moves and schema; 51 focused static/serialization/exchange tests passed | Accepted; no concrete algorithm defect found |
+| M2.01/M2.03 | Coordinator | Consecutive coverage gaps claimed old tests as evidence for new semantics | Verification-process weakness: require explicit claim-to-test mapping; no evidence justifying a runtime refactor |
 
 Append substantive findings here with their checkpoint, independent source, direct evidence, and disposition. Similar consecutive findings must explicitly record whether they reveal an upstream design defect.
 
@@ -367,7 +371,7 @@ M2.08 is a separate gate, not a substitute for checkpoint-owned regressions. It 
 
 ## Resumption block
 
-- **Current checkpoint:** M2.02/M2.03, in progress. M2.01 accepted after independent review and fixes.
+- **Current checkpoint:** M2.02/M2.03 commits, followed by M2.04/M2.05. M2.01 committed as `98268b5`.
 - **Completed evidence:** Baseline commit is `8b03c09`; pre-M2 baselines were 145 passed plus 10 skipped ordinarily and 155 passed with Stockfish in an isolated temporary directory. M2.01 focused serializer/CLI verification passed 21 tests after creating the missing workspace temp parent.
 - **Next action:** Complete orientation CLI integration and structural continuity verification; commit each independently with its tests, documentation, and fresh reviewer evidence.
 - **Established verification:** `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <fresh-temp-path>`; use `NAMICHESS_TEST_ENGINE` and the executable above for the final engine sweep.
