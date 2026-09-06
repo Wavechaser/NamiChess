@@ -6,6 +6,11 @@ shared JSON snapshots, shared orientation, structural continuity, bounded local
 exchange evaluation, focused local move or piece probes, and qualified local
 assessments are implemented.
 
+The CLI acknowledges a running analysis once instead of appending elapsed-time
+updates. Completed results count recorded root probes and report their known
+depth or depth range; coverage still identifies unfinished work. Survey lines
+and requested roots without a completed probe are excluded from that count.
+
 ## First milestone
 
 M1 is an interactive CLI position lab. It imports FEN and PGN, navigates games

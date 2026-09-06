@@ -288,7 +288,11 @@ def render_json(view: SessionView) -> str:
 
 
 def _analysis_summary(result: AnalysisResult) -> list[str]:
-    lines = [f"Analysis: {result.state.value}"]
+    probe_summary = _completed_probe_summary(result)
+    state_text = probe_summary if result.state is AnalysisState.COMPLETED and probe_summary else result.state.value
+    lines = [f"Analysis: {state_text}"]
+    if result.state is AnalysisState.RUNNING:
+        return lines
     if result.message:
         lines.append(f"Analysis message: {result.message}")
     if result.state is AnalysisState.FAILED:
@@ -299,6 +303,21 @@ def _analysis_summary(result: AnalysisResult) -> list[str]:
         + (" (interrupted)" if result.coverage.interrupted else "")
     )
     return lines
+
+
+def _completed_probe_summary(result: AnalysisResult) -> str | None:
+    probes = tuple(item for item in result.evidence if item.kind == "engine_line")
+    if not probes:
+        return None
+    depths = sorted(item.engine_depth for item in probes if item.engine_depth is not None)
+    noun = "root probe" if len(probes) == 1 else "root probes"
+    summary = f"{len(probes)} {noun} completed"
+    if not depths:
+        return summary
+    qualifier = "known " if len(depths) != len(probes) else ""
+    if depths[0] == depths[-1]:
+        return f"{summary}; {qualifier}depth {depths[0]}"
+    return f"{summary}; {qualifier}depth range {depths[0]}–{depths[-1]}"
 
 
 def _render_fact(explanation: Explanation, catalog: ExplanationCatalog, evidence: dict[str, object]) -> str:
@@ -739,7 +758,7 @@ async def run_cli(
     display = display_state or BoardDisplayState()
     quit_requested = False
     reporter = (
-        asyncio.create_task(_report_analysis(controller, catalog, session, stdout, stderr))
+        asyncio.create_task(_report_analysis(controller, catalog, session, stdout))
         if interactive and controller is not None and catalog is not None
         else None
     )
@@ -797,9 +816,7 @@ async def _report_analysis(
     catalog: ExplanationCatalog,
     session: Session,
     stdout: TextIO,
-    stderr: TextIO,
 ) -> None:
-    last_progress: tuple[int, float] | None = None
     last_final: tuple[int, AnalysisState] | None = None
     while True:
         await asyncio.sleep(0.25)
@@ -807,12 +824,6 @@ async def _report_analysis(
         if result is None or not session.loaded or result.revision != session.view().revision:
             continue
         if result.state is AnalysisState.RUNNING:
-            progress = controller.progress
-            if progress is not None:
-                marker = (result.request_id, progress.elapsed_seconds)
-                if marker != last_progress:
-                    await run_in_terminal(lambda: print(f"Analysis progress: {progress.elapsed_seconds:.1f}s", file=stderr))
-                    last_progress = marker
             continue
         marker = (result.request_id, result.state)
         if marker != last_final:

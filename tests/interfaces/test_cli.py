@@ -431,9 +431,48 @@ def test_redirected_input_waits_for_latest_analysis_and_closes() -> None:
 
     stdout, stderr = asyncio.run(exercise())
     assert "Analysis: running" in stdout
-    assert "Analysis: completed" in stdout
+    assert "Analysis: 1 root probe completed; depth 8" in stdout
     assert "Ra2" in stdout
     assert stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("depths", "expected"),
+    (
+        ((12, 12), "Analysis: 2 root probes completed; depth 12"),
+        ((8, 14), "Analysis: 2 root probes completed; depth range 8–14"),
+        ((None, None), "Analysis: 2 root probes completed"),
+        ((8, None), "Analysis: 2 root probes completed; known depth 8"),
+    ),
+)
+def test_final_summary_counts_only_completed_root_evidence_and_reports_available_depths(
+    depths, expected,
+) -> None:
+    evidence = (
+        Evidence("survey", "engine_survey", engine_depth=20),
+        *(Evidence(f"probe-{index}", "engine_line", engine_depth=depth) for index, depth in enumerate(depths)),
+    )
+    result = AnalysisResult(
+        1, 1, AnalysisState.COMPLETED, evidence=evidence,
+        coverage=Coverage(9, 2, 4, True, 20),
+    )
+
+    output = render_analysis(result, CATALOG)
+
+    assert expected in output
+    assert "Analysis: 3 root probes" not in output
+    assert "depth 20" not in output
+    assert "Coverage: surveyed 9; selected 4 of 20 legal moves; probed 2 (interrupted)" in output
+
+
+def test_running_summary_is_a_single_acknowledgment_without_partial_probe_counts() -> None:
+    result = AnalysisResult(
+        1, 1, AnalysisState.RUNNING,
+        evidence=(Evidence("partial", "engine_line", engine_depth=8),),
+        coverage=Coverage(5, 1, 3, False, 20),
+    )
+
+    assert render_analysis(result, CATALOG) == "Analysis: running"
 
 
 def test_compare_resolves_san_and_uci_without_moving_session() -> None:
@@ -620,7 +659,10 @@ def test_progress_output_preserves_partially_typed_interactive_command() -> None
 
     stdout, stderr = asyncio.run(exercise())
     assert stdout.count("Turn: white") >= 2
-    assert 1 <= stderr.count("Analysis progress:") <= 4
+    assert stdout.count("Analysis: running") >= 1
+    assert "Coverage: surveyed 0; selected 0" not in stdout
+    assert "Analysis: 1 root probe completed; depth 8" in stdout
+    assert stderr == ""
 
 
 def test_native_process_reconfigures_cp1252_standard_streams_to_utf8() -> None:
