@@ -4,6 +4,13 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 structural continuity — 2026-09-06
+
+- Added identity-bearing attack and geometric-defence contacts, undefended-piece
+  facts, and latent slider rays with exact move deltas across special moves.
+- Advanced shared snapshots to schema version 2 while preserving version-1 field
+  meanings and encodings.
+
 ### M2 shared orientation — 2026-09-06
 
 - Added one versioned shared orientation default, local CLI board flipping, and

@@ -149,10 +149,10 @@ the current input. `quit` does not wait for a full search.
 
 ## JSON snapshot
 
-`json` emits one object with `schema_version: 1`, `session`, and `analysis`.
+`json` emits one object with `schema_version: 2`, `session`, and `analysis`.
 The CLI delegates this shape to the shared interface serialization adapter so a
-future GUI consumer does not need to import CLI rendering code. This extraction
-does not change any schema-version-1 field or value encoding.
+future GUI consumer does not need to import CLI rendering code. Schema version 2
+preserves every version-1 field and encoding while adding structural facts.
 The snapshot is assembled by the application and includes analysis only when its
 position revision matches the selected session revision. `analysis` is `null`
 when no current result exists.
@@ -164,8 +164,10 @@ that running state immediately; redirected EOF subsequently waits and prints the
 latest completed result as text.
 
 The session object contains position context, board rows, piece placements,
-geometric attacks, actual-side legal moves, absolute pins, check facts, and an
-optional previous-move delta. Moves carry UCI and SAN. Piece, square, position,
+geometric attacks, identity-bearing attack/defence contacts, geometrically
+undefended pieces, latent slider rays, actual-side legal moves, absolute pins,
+check facts, and an optional previous-move delta. Move deltas contain added and
+removed forms of those structural facts. Moves carry UCI and SAN. Piece, square, position,
 candidate, explanation, evidence, request, and revision identities remain
 structured; a consumer does not parse prose to draw arrows or highlights.
 
@@ -181,11 +183,11 @@ nested fields remain named typed values rather than encoded prose:
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "session": {
     "revision": 3,
     "position": {"current_fen": "...", "moves": ["e2e4"]},
-    "facts": {"pieces": [], "attacks": [], "legal_moves": [], "pins": []},
+    "facts": {"pieces": [], "attacks": [], "contacts": [], "geometrically_undefended": [], "latent_rays": [], "legal_moves": [], "pins": []},
     "previous_move": {"uci": "e2e4", "san": "e4"}
   },
   "analysis": {

@@ -11,10 +11,10 @@ from namichess.application.views import SessionView
 
 
 def serialize_session_view(view: SessionView) -> str:
-    """Serialize one complete schema-version-1 session snapshot."""
+    """Serialize one complete schema-version-2 session snapshot."""
     return json.dumps(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "session": _json_value(dataclasses.replace(view, analysis=None)),
             "analysis": _json_value(view.analysis),
         },

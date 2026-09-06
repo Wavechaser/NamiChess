@@ -62,6 +62,12 @@ and appears in move deltas and line material evidence. M2 should expand regressi
 coverage for underpromotion and capture-promotion effects. A future GUI will
 provide a choice among all four legal promotion types.
 
+M2 structural snapshots now record identity-bearing attack and geometric-defence
+contacts, geometrically undefended pieces, and latent slider rays through the next
+occupied square. Move deltas report gained and lost forms of those facts across
+captures, castling, en passant, and every promotion type without treating a
+geometric relationship as proof that a piece is safe or tactically lost.
+
 ## Product aim
 
 NamiChess is a local, rating-agnostic chess-analysis and training tool. It

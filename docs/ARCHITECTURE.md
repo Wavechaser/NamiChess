@@ -263,11 +263,15 @@ request sequencing or stale-result policy. CLI cancellation settles before a
 later position request can be submitted.
 
 The interface-neutral serialization adapter renders the shared application view
-as one `schema_version: 1` JSON snapshot; the CLI delegates to it rather than
+as one `schema_version: 2` JSON snapshot; the CLI delegates to it rather than
 owning the wire shape. Squares use algebraic coordinates, moves carry
 UCI and SAN, and scores use tagged centipawn or mate values with explicit
 perspective. Progress belongs on stderr and command results on stdout. A later
 GUI consumes the same semantic references to draw arrows and highlights.
+Schema version 2 adds identity-bearing piece contacts, geometrically undefended
+pieces, and latent slider rays to position facts and their added/removed forms to
+move deltas. These remain geometric observations rather than tactical ownership
+or unconditional safety claims.
 The editable JSON explanation text remains under `content`; its validation and
 formatting adapter lives under `interfaces` and is constructed with the engine
 and controller in `composition.py`.

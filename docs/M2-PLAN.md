@@ -49,7 +49,7 @@ Static relationships remain usable without an engine. Local search belongs to th
 |---|---|---|---|---|
 | M2.01 | Explicit M2 contracts and shared serialization boundary | — | Serializer characterization and ordinary suite | complete |
 | M2.02 | Shared orientation defaults and local CLI flipping | M2.01 | Settings round trips and orientation invariance | complete |
-| M2.03 | Complete structural move continuity | M2.01 | Named mirrored relationship fixtures | review passed; commit pending |
+| M2.03 | Complete structural move continuity | M2.01 | Named mirrored relationship fixtures | complete |
 | M2.04 | Bounded, legality-aware local exchange evidence | M2.03 | Exchange fixtures and unsupported cases | pending |
 | M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | pending |
 | M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | pending |
@@ -371,7 +371,7 @@ M2.08 is a separate gate, not a substitute for checkpoint-owned regressions. It 
 
 ## Resumption block
 
-- **Current checkpoint:** M2.02/M2.03 commits, followed by M2.04/M2.05. M2.01 committed as `98268b5`.
+- **Current checkpoint:** M2.04/M2.05. M2.01 committed as `98268b5`; M2.02 committed as `c6241a1`; M2.03 accepted independently.
 - **Completed evidence:** Baseline commit is `8b03c09`; pre-M2 baselines were 145 passed plus 10 skipped ordinarily and 155 passed with Stockfish in an isolated temporary directory. M2.01 focused serializer/CLI verification passed 21 tests after creating the missing workspace temp parent.
 - **Next action:** Complete orientation CLI integration and structural continuity verification; commit each independently with its tests, documentation, and fresh reviewer evidence.
 - **Established verification:** `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <fresh-temp-path>`; use `NAMICHESS_TEST_ENGINE` and the executable above for the final engine sweep.
