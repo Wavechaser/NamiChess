@@ -167,6 +167,8 @@ def assess_trapping(
     placement = next((item for item in placements if item.piece_id == piece), None)
     if placement is None or placement.color != ("white" if board.turn else "black"):
         return TrappingAssessment(exploration.position_id, piece, AssessmentConclusion.UNSUPPORTED, (), (), (), (), AssessmentCoverage(CoverageUnit.LEGAL_EXITS, 0, 0, 0, 0))
+    if board.is_game_over(claim_draw=False):
+        return TrappingAssessment(exploration.position_id, piece, AssessmentConclusion.UNSUPPORTED, (), (), (), (), AssessmentCoverage(CoverageUnit.LEGAL_EXITS, 0, 0, 0, 0))
     source = chess.parse_square(placement.square)
     legal_exits = tuple(sorted(move.uci() for move in board.legal_moves if move.from_square == source))
     if not legal_exits:
@@ -210,6 +212,8 @@ def assess_overload(context: PositionContext, exploration: LocalExploration) -> 
     _validate_evidence_associations(exploration)
     facts = position_facts(context)
     board, placements = replay_position(context)
+    if board.is_game_over(claim_draw=False):
+        return ()
     actual = "white" if board.turn else "black"
     attacked = {
         contact.subject: tuple(

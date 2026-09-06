@@ -4,6 +4,14 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Terminal local-analysis boundary — 2026-09-06
+
+- Stop local exploration at automatic terminal positions before enumerating
+  roots or replies, including insufficient material and automatic draws that
+  still have geometric legal moves.
+- Preserve checkmate precedence and distinguish claimable draws from automatic
+  game endings; report no fictional post-game continuations or reply coverage.
+
 ### M2 qualified local assessments — 2026-09-06
 
 - Added immutable move-safety and piece-trapping assessments with explicit

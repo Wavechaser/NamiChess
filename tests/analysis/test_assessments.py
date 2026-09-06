@@ -99,6 +99,16 @@ def test_zero_legal_piece_exits_is_reported_distinctly() -> None:
     assert assessment.conclusion is AssessmentConclusion.NO_LEGAL_EXITS
 
 
+def test_terminal_source_does_not_report_phantom_exit_or_overload_work() -> None:
+    position = context("7k/8/8/8/8/8/8/K7 w - - 0 1")
+    piece = position_facts(position).pieces[0].piece_id
+    local = LocalExploration(position.position_id, (), 0, LocalLimits(), None, ())
+    trapping = assess_trapping(position, local, piece)
+    assert trapping.conclusion is AssessmentConclusion.UNSUPPORTED
+    assert trapping.legal_exits == trapping.unresolved_exits == ()
+    assert assess_overload(position, local) == ()
+
+
 def test_shared_defensive_contacts_are_only_an_incomplete_candidate_without_a_witness() -> None:
     position = context(FIXTURES["shared_defender_duties"])
     empty = LocalExploration(position.position_id, (), 0, LocalLimits(), None, ())

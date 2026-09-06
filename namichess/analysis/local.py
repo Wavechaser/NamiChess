@@ -159,6 +159,8 @@ async def explore_local(
     if not math.isfinite(deadline):
         raise ValueError("deadline must be finite")
     board, _ = replay_position(context)
+    if board.is_game_over(claim_draw=False):
+        return LocalExploration(context.position_id, (), 0, limits, None, ())
     legal = tuple(board.legal_moves)
     legal_by_uci = {move.uci(): move for move in legal}
     if any(uci not in legal_by_uci for uci in root_moves):
@@ -191,10 +193,13 @@ async def explore_local(
             )
         child = board.copy(stack=True)
         child.push(root)
-        replies = tuple(sorted(child.legal_moves, key=lambda move: move.uci()))
+        terminal = child.is_game_over(claim_draw=False)
+        replies = () if terminal else tuple(sorted(child.legal_moves, key=lambda move: move.uci()))
         lines: list[LocalLine] = []
         examined = 0
-        if limits.max_depth == 1:
+        if terminal:
+            lines.append(await explorer.line(child, (root.uci(),), 1, board.turn))
+        elif limits.max_depth == 1:
             lines.append(explorer.result((root.uci(),), LocalExit.EXAMINED, LocalTermination.DEPTH))
         elif not replies:
             lines.append(await explorer.line(child, (root.uci(),), 1, board.turn))

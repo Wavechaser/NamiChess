@@ -184,7 +184,81 @@ def test_terminal_root_has_zero_of_zero_reply_coverage() -> None:
         assert root.legal_reply_count == root.examined_reply_count == 0
         assert root.omitted_replies == ()
         assert root.lines[0].termination is LocalTermination.TERMINAL
+        assert root.lines[0].exit is LocalExit.EXAMINED
 
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize(
+    "fen,root",
+    (
+        ("r3k3/1P6/8/8/8/8/8/4K3 w - - 0 1", "b7a8b"),
+        ("4k3/8/8/8/8/8/1p6/R3K3 b - - 0 1", "b2a1b"),
+    ),
+)
+def test_root_that_reaches_insufficient_material_has_no_fictional_replies(fen: str, root: str) -> None:
+    async def exercise() -> None:
+        result = await explore_local(
+            context(fen), limits=LocalLimits(max_depth=1), deadline=10.0,
+            monotonic=lambda: 0.0, root_moves=(root,),
+        )
+        evidence = result.roots[0]
+        assert evidence.legal_reply_count == evidence.examined_reply_count == 0
+        assert evidence.omitted_replies == ()
+        assert len(evidence.lines) == 1
+        assert evidence.lines[0].moves == (root,)
+        assert evidence.lines[0].termination is LocalTermination.TERMINAL
+    asyncio.run(exercise())
+
+
+def test_automatic_seventyfive_move_draw_stops_after_root_but_claimable_fifty_does_not() -> None:
+    async def exercise() -> None:
+        automatic = await explore_local(
+            context("7k/8/8/8/8/8/8/R6K w - - 149 1"),
+            limits=LocalLimits(max_depth=1), deadline=10.0, monotonic=lambda: 0.0,
+            root_moves=("a1a2",),
+        )
+        assert automatic.roots[0].legal_reply_count == 0
+        assert automatic.roots[0].lines[0].termination is LocalTermination.TERMINAL
+
+        claimable = await explore_local(
+            context("7k/8/8/8/8/8/8/R6K w - - 99 1"),
+            limits=LocalLimits(max_depth=1), deadline=10.0, monotonic=lambda: 0.0,
+            root_moves=("a1a2",),
+        )
+        assert claimable.roots[0].legal_reply_count > 0
+        assert claimable.roots[0].lines[0].termination is LocalTermination.DEPTH
+    asyncio.run(exercise())
+
+
+def test_fivefold_repetition_stops_after_the_repeating_root() -> None:
+    moves = ("g1f3", "g8f6", "f3g1", "f6g8") * 3 + ("g1f3", "g8f6", "f3g1")
+    board = chess.Board()
+    for move in moves:
+        board.push_uci(move)
+    position = PositionContext(1, 1, (), chess.STARTING_FEN, moves, board.fen(en_passant="fen"), True)
+
+    async def exercise() -> None:
+        result = await explore_local(
+            position, limits=LocalLimits(max_depth=1), deadline=10.0,
+            monotonic=lambda: 0.0, root_moves=("f6g8",),
+        )
+        root = result.roots[0]
+        assert root.legal_reply_count == root.examined_reply_count == 0
+        assert root.lines[0].termination is LocalTermination.TERMINAL
+    asyncio.run(exercise())
+
+
+def test_terminal_source_returns_no_roots_or_omitted_moves_even_when_focused() -> None:
+    async def exercise() -> None:
+        result = await explore_local(
+            context("7k/8/8/8/8/8/8/K7 w - - 0 1"), limits=LocalLimits(),
+            deadline=10.0, monotonic=lambda: 0.0,
+            root_moves=("a1a2",), piece_square="a1",
+        )
+        assert result.roots == ()
+        assert result.omitted_legal_moves == ()
+        assert result.nodes == 0
     asyncio.run(exercise())
 
 
