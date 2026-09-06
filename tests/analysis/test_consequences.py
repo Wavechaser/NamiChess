@@ -88,6 +88,50 @@ def test_moving_a_blocker_off_a_ray_connects_the_stationary_slider_to_occupied_t
     }
 
 
+@pytest.mark.parametrize(
+    ("fen", "uci", "slider_square", "target_square"),
+    [
+        ("7k/8/8/R2pP2r/8/8/8/K7 w - d6 0 1", "e5d6", "a5", "h5"),
+        ("K7/8/8/8/R2Pp2r/8/8/7k b - d3 0 1", "e4d3", "a4", "h4"),
+    ],
+)
+def test_en_passant_can_open_a_line_by_clearing_both_intervening_pawns(
+    fen: str, uci: str, slider_square: str, target_square: str,
+) -> None:
+    delta, result = account(fen, uci)
+    opened = next(item for item in result.consequences if item.kind is ConsequenceKind.OPENED_LINE)
+
+    assert opened.source is not None and opened.source.square == slider_square
+    assert opened.target is not None and opened.target.square == target_square
+    assert {reference.kind.value for reference in opened.supporting_facts} == {
+        "moved", "latent_rays_removed", "contacts_added",
+    }
+    assert all(resolve_raw_fact(delta, reference) is not None for reference in opened.supporting_facts)
+    removed_ray = next(
+        resolve_raw_fact(delta, reference)
+        for reference in opened.supporting_facts
+        if reference.kind.value == "latent_rays_removed"
+    )
+    assert {removed_ray.blocker, delta.moved.piece} == {
+        delta.captured.piece_id, delta.moved.piece,
+    }
+
+
+@pytest.mark.parametrize(
+    ("fen", "uci"),
+    [
+        ("7k/8/8/RN1pP2n/8/8/8/K7 w - d6 0 1", "e5d6"),
+        ("K7/8/8/8/RN1Pp2N/8/8/7k b - d3 0 1", "e4d3"),
+    ],
+)
+def test_en_passant_does_not_open_a_line_when_an_intervening_blocker_remains(
+    fen: str, uci: str,
+) -> None:
+    _, result = account(fen, uci)
+
+    assert ConsequenceKind.OPENED_LINE not in {item.kind for item in result.consequences}
+
+
 def test_captured_subject_contact_removals_are_suppressed() -> None:
     delta, result = account("7k/8/8/1p6/2n5/3B4/8/K7 w - - 0 1", "d3c4")
     captured = delta.captured.piece_id

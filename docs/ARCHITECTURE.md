@@ -366,6 +366,11 @@ Selection order and `omitted_count` are deterministic. Opened and blocked lines
 require a matching occupied-piece contact; lost defense requires a surviving
 piece to become geometrically undefended. These are geometric observations, not
 claims of legal access, tactical safety, intent, or engine-score causality.
+Opened-line grouping compares intervening occupancy before and after the move.
+Every cleared blocker must be accounted for by the move or capture, so en
+passant can connect an attack opened by clearing both pawns. The supporting
+references retain the original latent ray, new contact, and additional cleared
+blocker effects; a blocker remaining on the line prevents that explanation.
 The application derives a separate, bounded `attention` selection from the
 already-computed current facts and optional move account. It prioritizes current
 check, attacked pieces that lost geometric defense, other attacked and

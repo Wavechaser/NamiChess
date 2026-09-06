@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import Enum
 
+import chess
+
 from namichess.analysis.static import ContactKind, MoveDelta
 from namichess.domain.models import PieceId, PiecePlacement, PositionId, SquareRef
 
@@ -198,26 +200,41 @@ def _derive(delta: MoveDelta) -> tuple[MoveConsequence, ...]:
                 pin.king, _ref(delta, RawFactKind.PIN_REMOVED, index),
             ))
 
-    for ray_index, ray in enumerate(delta.latent_rays_removed):
-        if ray.blocker not in (moved, captured) or ray.target is None or ray.slider == moved:
+    before_by_square = {item.square: item for item in delta.before_pieces}
+    after_occupied = {item.square for item in delta.after_pieces}
+    for contact_index, contact in enumerate(delta.contacts_added):
+        if contact.controller == moved or contact.subject == moved:
             continue
-        contact_index = next((
-            index for index, contact in enumerate(delta.contacts_added)
-            if contact.controller == ray.slider and contact.subject == ray.target
+        between = _squares_between(contact.controller_square.square, contact.subject_square.square)
+        if between is None or any(square in after_occupied for square in between):
+            continue
+        cleared = tuple(before_by_square[square].piece_id for square in between if square in before_by_square)
+        if not cleared or any(piece not in (moved, captured) for piece in cleared):
+            continue
+        ray_index = next((
+            index for index, ray in enumerate(delta.latent_rays_removed)
+            if ray.slider == contact.controller
+            and ray.source.square == contact.controller_square.square
+            and ray.blocker == cleared[0]
         ), None)
-        if contact_index is None:
+        if ray_index is None:
             continue
         consumed_added_contacts.add(contact_index)
-        opened_facts = (
+        opened_facts = [
             _ref(delta, RawFactKind.LATENT_RAY_REMOVED, ray_index),
             _ref(delta, RawFactKind.CONTACT_ADDED, contact_index),
-        )
+        ]
+        for blocker in cleared[1:]:
+            opened_facts.append(_ref(
+                delta,
+                RawFactKind.MOVED if blocker == moved else RawFactKind.CAPTURED,
+            ))
         pin_index = next((
             index for index, event in enumerate(result)
-            if event.kind is ConsequenceKind.PINNED and event.subject == ray.target
+            if event.kind is ConsequenceKind.PINNED and event.subject == contact.subject
             and any(
-                pin.piece == ray.target
-                and ray.source.square in {square.square for square in pin.ray}
+                pin.piece == contact.subject
+                and contact.controller_square.square in {square.square for square in pin.ray}
                 for pin in delta.pins_added
             )
         ), None)
@@ -228,8 +245,8 @@ def _derive(delta: MoveDelta) -> tuple[MoveConsequence, ...]:
             )
             continue
         result.append(_event(
-            ConsequenceKind.OPENED_LINE, ray.slider, ray.target, ray.source,
-            delta.contacts_added[contact_index].subject_square, ray.blocker,
+            ConsequenceKind.OPENED_LINE, contact.controller, contact.subject,
+            contact.controller_square, contact.subject_square, cleared[0],
             *opened_facts,
         ))
 
@@ -327,6 +344,27 @@ def _placement_square(
 ) -> SquareRef:
     placement = next(item for item in placements if item.piece_id == piece)
     return SquareRef(position_id, placement.square)
+
+
+def _squares_between(source: str, target: str) -> tuple[str, ...] | None:
+    source_square = chess.parse_square(source)
+    target_square = chess.parse_square(target)
+    file_delta = chess.square_file(target_square) - chess.square_file(source_square)
+    rank_delta = chess.square_rank(target_square) - chess.square_rank(source_square)
+    if not (file_delta == 0 or rank_delta == 0 or abs(file_delta) == abs(rank_delta)):
+        return None
+    file_step = (file_delta > 0) - (file_delta < 0)
+    rank_step = (rank_delta > 0) - (rank_delta < 0)
+    file_index = chess.square_file(source_square) + file_step
+    rank_index = chess.square_rank(source_square) + rank_step
+    result = []
+    while (file_index, rank_index) != (
+        chess.square_file(target_square), chess.square_rank(target_square),
+    ):
+        result.append(chess.square_name(chess.square(file_index, rank_index)))
+        file_index += file_step
+        rank_index += rank_step
+    return tuple(result)
 
 
 def _ref(delta: MoveDelta, kind: RawFactKind, index: int | None = None) -> RawFactRef:
