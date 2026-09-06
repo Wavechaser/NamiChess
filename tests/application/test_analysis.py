@@ -150,6 +150,52 @@ def test_focused_quiet_move_is_locally_explored_and_engine_verified() -> None:
     asyncio.run(exercise())
 
 
+def test_focused_assessments_are_computed_once_and_reused_in_running_partials(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    real_assessments = analysis_module._assessments
+    assessment_calls = 0
+
+    def counted_assessments(*args, **kwargs):
+        nonlocal assessment_calls
+        assessment_calls += 1
+        return real_assessments(*args, **kwargs)
+
+    monkeypatch.setattr(analysis_module, "_assessments", counted_assessments)
+
+    class ObservingEngine(FakeEngine):
+        controller: AnalysisController
+
+        def __init__(self) -> None:
+            super().__init__()
+            self.partials = []
+
+        async def analyze(self, position, policy, *, progress=None):
+            latest = self.controller.latest
+            if latest is not None and latest.state is AnalysisState.RUNNING and latest.candidates:
+                self.partials.append(latest)
+            return await super().analyze(position, policy, progress=progress)
+
+    async def exercise():
+        engine = ObservingEngine()
+        controller = AnalysisController(engine)
+        engine.controller = controller
+        controller.submit_probe(context(chess.STARTING_FEN), 1, ProbeSubject.for_move("a2a3"))
+        result = await controller.wait()
+
+        assert result is not None and result.state is AnalysisState.COMPLETED
+        assert assessment_calls == 1
+        assert engine.partials
+        assert result.move_safety
+        for partial in engine.partials:
+            assert partial.move_safety == result.move_safety
+            assert partial.trapping == result.trapping
+            assert partial.overload == result.overload
+            assert partial.assessment_pieces == result.assessment_pieces
+
+    asyncio.run(exercise())
+
+
 def test_negative_local_exchange_does_not_remove_engine_candidate() -> None:
     class CaptureEngine(FakeEngine):
         async def analyze(self, position, policy, *, progress=None):
@@ -211,6 +257,10 @@ def test_engine_failure_preserves_completed_focused_local_evidence() -> None:
         result = await controller.wait()
         assert result is not None and result.state is AnalysisState.FAILED
         assert result.local is not None and result.local.roots[0].root_uci == "a2a3"
+        assert result.move_safety == ()
+        assert result.trapping == ()
+        assert result.overload == ()
+        assert result.assessment_pieces == ()
 
     asyncio.run(exercise())
 

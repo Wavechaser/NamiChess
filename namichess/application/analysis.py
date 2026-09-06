@@ -226,6 +226,7 @@ class AnalysisController:
             return AnalysisResult(**base, state=AnalysisState.FAILED, message="comparison moves must be distinct legal moves")
         try:
             local = None
+            local_assessments: dict[str, tuple[object, ...]] = {}
             if len(board.piece_map()) > MAX_ENGINE_PIECES:
                 if local is None:
                     local = await self._local(request_id, context, subject, limits, self._clock() + limits.seconds)
@@ -239,10 +240,11 @@ class AnalysisController:
                 local = await self._local(request_id, context, subject, limits, min(deadline, self._clock() + limits.seconds))
                 if request_id != self._request:
                     return AnalysisResult(**base, state=AnalysisState.CANCELED, local=local)
+                local_assessments = _assessments(context, local, subject)
             survey_time = min(self._policy.survey_seconds, max(0.0, deadline - self._clock()))
             survey = await self._search(request_id, context, EnginePolicy(survey_time, self._policy.candidate_limit), deadline) if survey_time > 0 else None
             if survey is None:
-                return AnalysisResult(**base, state=AnalysisState.COMPLETED, coverage=Coverage(0, 0, 0, True, len(legal)), engine_name=engine_name, local=local, **_assessments(context, local, subject))
+                return AnalysisResult(**base, state=AnalysisState.COMPLETED, coverage=Coverage(0, 0, 0, True, len(legal)), engine_name=engine_name, local=local, **local_assessments)
             if survey.status not in (EngineStatus.COMPLETED,):
                 return AnalysisResult(**base, state=_state(survey.status), message=survey.message, engine_name=engine_name, local=local)
             roots = {candidate.pv[0] for candidate in survey.candidates if candidate.pv}
@@ -272,7 +274,7 @@ class AnalysisController:
                     if request_id == self._request:
                         partial = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
                         static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
-                        self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name, local=local, **_assessments(context, local, subject))
+                        self.latest = AnalysisResult(**base, state=AnalysisState.RUNNING, candidates=partial[0], explanations=_order_explanations(static_explanations + partial[1]), evidence=partial[2] + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), True, len(legal)), engine_name=engine_name, local=local, **local_assessments)
             if subject is None:
                 local = await explore_local(
                     context, limits=limits, deadline=self._clock() + limits.seconds,
@@ -280,9 +282,10 @@ class AnalysisController:
                     cancelled=lambda: request_id != self._request or self._closed or self._superseded.is_set(),
                     request_id=request_id,
                 )
+                local_assessments = _assessments(context, local, subject)
             candidates, explanations, evidence = _assemble(request_id, revision, board, context, selected, probes, survey.candidates)
             static_explanations, static_evidence = _current_tactics(board, context, request_id, revision)
-            return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name, local=local, **_assessments(context, local, subject))
+            return AnalysisResult(**base, state=AnalysisState.COMPLETED, candidates=candidates, explanations=_order_explanations(static_explanations + explanations), evidence=evidence + static_evidence, coverage=Coverage(len(survey.candidates), len(probes), len(selected), interrupted, len(legal)), engine_name=engine_name, local=local, **local_assessments)
         except asyncio.CancelledError:
             if self.latest is not None and self.latest.request_id == request_id:
                 return replace(self.latest, state=AnalysisState.CANCELED)
