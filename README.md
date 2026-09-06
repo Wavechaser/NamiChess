@@ -5,17 +5,29 @@ purpose is to explain what a position permits, what a move changes, which threat
 matter, and which sufficiently strong continuation a human can understand and
 keep playing.
 
-The project is in pre-implementation setup. The product definition is in
-[docs/chess-copilot-spec.md](docs/chess-copilot-spec.md).
+M1 and M2 are complete. The interactive CLI joins strict PGN/FEN navigation,
+relationship continuity, bounded Stockfish and local evidence, focused probes,
+and shared views for a future GUI. The product definition is in
+[docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and current CLI/API
+behavior is in [docs/COMMANDLINE.md](docs/COMMANDLINE.md).
 
 ## Current state
 
-- Python package and test environment established.
+- Python package, test environment, and `namichess` CLI established.
 - `python-chess` available for board representation and rules.
 - Stockfish 18 installed as an ignored machine-local tool.
 - Product, architecture, feature, defense, and defect documents established.
 - MPChess SVG pieces bundled for the future board interface.
-- Position analysis and user interfaces are not implemented yet.
+- The CLI can strictly load and navigate PGN/FEN positions, including composed
+  standard-chess positions with unusual material. Shared views expose geometric
+  attacks, actual-side legal moves, absolute pins, and the previous move delta;
+  `inspect <square>` renders those facts. Bounded Stockfish analysis, comparison,
+  evidence details, and versioned JSON snapshots are available for review.
+- M2 adds identity-bearing relationship changes, bounded local exchange and
+  forcing evidence, qualified safety/trapping/overload assessments, focused
+  probes, connected move accounts, automatic attention, structural candidate
+  comparisons, read-only previews, and shared orientation defaults. The
+  interactive GUI remains future work.
 
 ## Requirements
 
@@ -54,22 +66,47 @@ Verify the environment:
 & '.\.tools\stockfish\stockfish-windows-x86-64-avx2.exe' compiler
 ```
 
-The application will later accept an explicit engine path, with this location
-as the development default. It will not download engines or contact remote
-services at runtime.
+Start an interactive session:
+
+```powershell
+namichess
+```
+
+Use `load <path>` for a UTF-8 `.pgn` or `.fen` file, or enter a complete
+six-field position with `fen <FEN>`. `games`, `game <n>`, `start`, `end`,
+`next`, `back`, `goto <ply>`, `variations`, `variation <n>`, and
+`move <SAN-or-UCI>` navigate without changing the imported file. `inspect`,
+`changes`, `analyze`, `compare`, `probe move`, `probe piece`, `details`, `line`,
+and `json` expose the shared analysis workflow and read-only evidence previews.
+Run `help`
+inside the session for the compact command list.
+
+Pass a different local executable with `namichess --engine <path>`. The location
+above is the development default. NamiChess does not download engines or contact
+remote services at runtime.
 
 ## Persistence
 
-SQLite is deliberately deferred. NamiChess imports, parses, saves, and exports
-PGN games and FEN positions; small app-owned settings, metadata, and derived
-analysis use separate versioned UTF-8 JSON. Imported files are read-only inputs,
-and exports use distinct user-confirmed paths.
+SQLite is deliberately deferred. The CLI imports and parses PGN games and FEN
+positions; game save and export remain future work. The shared orientation
+default uses versioned UTF-8 JSON at `%LOCALAPPDATA%\NamiChess\settings.json`.
+Future metadata and derived analysis will be stored separately. Imported
+files are read-only inputs, and future exports will use distinct user-confirmed
+paths.
 
 ## Documentation
 
 - [Product specification](docs/chess-copilot-spec.md)
 - [Features](docs/FEATURES.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Command-line guide](docs/COMMANDLINE.md)
+- [M2 ablation study](docs/M2-ABLATION.md)
+- [M3 direction and implementation gates](docs/M3-PLAN.md)
+- [Historical M1 implementation plan](docs/obsolete/M1-PLAN.md)
+- [Historical M1 invariant review](docs/obsolete/M1-INTEGRATION-REVIEW.md)
+- [Historical M2 implementation and acceptance plan](docs/obsolete/M2-PLAN.md)
+- [Historical M2 consolidation and explanation follow-up](docs/obsolete/M2-EXPLANATION-PLAN.md)
+- [Historical M2 complex-check and threat acceptance](docs/obsolete/M2-THREAT-PLAN.md)
 - [Defense](docs/DEFENSE.md)
 - [Bugs](docs/BUGS.md)
 - [Changelog](CHANGELOG.md)

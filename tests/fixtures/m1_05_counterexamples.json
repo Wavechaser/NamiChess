@@ -1,0 +1,10 @@
+{
+  "poisoned_capture": "3q2k1/8/8/8/8/8/3r4/3Q2K1 w - - 0 1",
+  "sound_sacrifice": "r1bq1rk1/ppp2ppp/2n2n2/3pp3/1b1PP3/2PB1N2/PP3PPP/RNBQ1RK1 w - - 0 8",
+  "pinned_recapture": "4k3/4r3/8/8/8/8/3N4/4R1K1 w - - 0 1",
+  "forced_evasion": "4k3/8/8/8/8/8/4r3/4K3 w - - 0 1",
+  "capped_choice": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+  "mate_over_material": "7k/5Q2/6K1/8/8/8/8/8 w - - 0 1",
+  "mate_over_material_mirror": "8/8/8/8/8/6k1/5q2/7K b - - 0 1"
+  ,"mate_blunder": "r1bqkb1r/pp1p1ppp/n1p1p2n/8/2P3PN/N6P/PP1PPP2/R1BQKB1R w KQkq - 0 7"
+}

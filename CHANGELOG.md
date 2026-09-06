@@ -1,38 +1,56 @@
 # Changelog
 
-Completed project changes are recorded here newest-first.
+Completed changes are grouped by milestone, newest first.
 
 ## Unreleased
 
-### Board assets — 2026-09-06
+### Milestone 2
 
-- Bundled Maxime Chupin's GPL-3.0-only MPChess SVG piece set with pinned provenance and
-  redistribution notices.
-- Defined one twelve-file SVG contract and rendering path for the bundled default
-  and app-owned custom themes.
+- Added identity-bearing attack/defence relationships, undefended-piece facts,
+  latent rays, and before/after continuity through captures, castling, en passant,
+  and every promotion type.
+- Added bounded exchange and forcing analysis, focused move/piece probes, and
+  qualified safety, trapping, material-exposure, and conflicting-duty assessments
+  with explicit evidence, omissions, and coverage.
+- Added connected move accounts, automatic position attention, immediate
+  candidate comparisons, richer `changes`/inspection/details, and read-only
+  previews. Shared schema-version-4 views retain fact sources, identities,
+  selection limits, and navigation references for a later GUI.
+- Connected complex discoveries, explicit checker roles, double checks, and
+  structural forks with bounded checking-threat response evidence, keeping
+  capture availability separate from material-gain claims.
+- Condensed progress and score output, and consolidated repeated catalog loads,
+  fact and assessment computation, PGN preparation, and exposure rendering.
+- Added persistent shared orientation defaults, import overrides, and local
+  flipping without changing chess state or score perspective.
+- Formalized unique case-insensitive move shorthand in PGN imports and typed
+  commands, inferring omitted capture/check/mate effects while retaining strict
+  legality, structural validation, and canonical in-memory SAN.
+- Hardened stale-request rejection, terminal-position boundaries, cancellation,
+  and replacement handling; verified shared references, source preservation, and
+  complete CLI/Stockfish workflows through independent reviews.
 
-### Project layout — 2026-09-05
+### Milestone 1
 
-- Moved the `namichess` package from the `src` layout to the repository root and
-  updated package discovery.
-- Moved the core product specification under `docs/` and standardized project
-  identifiers and command naming on `namichess`.
+- Delivered an interactive CLI for bounded PGN/FEN import, game and variation
+  navigation, composed positions, and in-memory trial moves without rewriting
+  imported files.
+- Added shared static board facts, piece identities, geometric attacks, legal
+  access, absolute pins, and move deltas.
+- Integrated persistent Stockfish analysis and candidate comparison with bounded
+  work, explicit White-perspective scores, and legally replayed tactical evidence.
+- Added candidate tables, editable explanation text, evidence details, and
+  versioned shared JSON snapshots for future interfaces.
+- Verified transactional imports, revision-safe updates, cancellation, engine
+  startup/shutdown, UTF-8 Windows streams, and the 32-piece engine boundary.
 
-### Documentation — 2026-09-05
+### Project Setup
 
-- Made the product rating-agnostic through Foundation, Club, and Advanced presets
-  with sparse user overrides and reproducible per-analysis policy snapshots.
-- Defined separate settings, PGN/FEN, derived-analysis, and editable explanation
-  content boundaries.
-- Documented the GIL-aware Python/Stockfish execution model and narrowed defense
-  claims to concrete local authority and file risks.
-- Removed unenforceable restrictions based on inferred user intent.
-
-### Project setup — 2026-09-05
-
-- Established the Python 3.13 package, virtual environment, and pytest smoke test.
-- Added `python-chess` and an ignored machine-local Stockfish 18 installation.
-- Defined project working rules, architecture, features, defense scope, and
-  defect tracking.
-- Deferred SQLite in favor of PGN, FEN, and versioned JSON until query needs
-  justify a database.
+- Established the Python 3.13 package, pytest environment, python-chess dependency,
+  and ignored machine-local Stockfish installation.
+- Defined product goals, layer boundaries, working rules, documentation ownership,
+  and the narrow local-file defense model.
+- Standardized project naming and layout; separated PGN/FEN interchange, settings,
+  and derived analysis, deferring SQLite until justified by actual needs.
+- Bundled the MPChess SVG piece set with pinned provenance, licensing notices,
+  and a shared twelve-piece theme contract.

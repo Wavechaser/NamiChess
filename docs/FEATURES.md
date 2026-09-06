@@ -1,7 +1,148 @@
 # NamiChess Features
 
-Status: pre-implementation. Entries describe intended product behavior, not
-claims that it is implemented today.
+Status: M1 and M2 complete. Strict import, navigation,
+static inspection, bounded engine analysis, candidate comparison, text details,
+shared JSON snapshots, shared orientation, structural continuity, bounded local
+exchange evaluation, focused local move or piece probes, qualified local
+assessments, connected move accounts, automatic attention, and immediate
+candidate-root comparisons are implemented.
+
+The CLI acknowledges a running analysis once instead of appending elapsed-time
+updates. Completed results count recorded root probes and report their known
+depth or depth range; coverage still identifies unfinished work. Survey lines
+and requested roots without a completed probe are excluded from that count.
+
+## First milestone
+
+M1 is an interactive CLI position lab. It imports FEN and PGN, navigates games
+and variations, accepts composed standard-chess positions with unusual material,
+shows shared board facts and move deltas, and compares analyzed candidates with
+bounded Stockfish evidence. Text and versioned JSON render the same application
+views so a later GUI can add arrows and highlights without duplicating chess
+policy. Current CLI behavior and defaults live in [COMMANDLINE.md](COMMANDLINE.md).
+
+M1 includes narrow threat reporting for checks, immediate mates, captures, legal
+replies, and consequences in analyzed lines. Comprehensive threat assessment,
+practical-best ranking, active recall, training, GUI overlays, analysis
+persistence, and export are deferred. Syzygy integration and redistribution are
+excluded.
+
+Static inspection reports the occupant of a square, every piece that attacks it
+geometrically, moves by the actual side to move that legally reach it, and
+relevant absolute pins. Geometric attack does not imply legal access or safety.
+After a move, the shared view also exposes identity-bearing placement, capture,
+promotion, castling-rook, attack, slider-ray, pin, and check changes.
+
+The M2 section below describes implemented additions. Later sections describe
+the wider product roadmap and do not imply that every listed feature is available.
+
+## M2 — continuity and local analysis
+
+M2 centers on continuity: explain how each legal move changes piece relationships
+and what those changes enable. Its analysis and shared interface additions are
+implemented; acceptance evidence is recorded in the
+[historical milestone plan](obsolete/M2-PLAN.md).
+
+The CLI explains selected connected consequences of the move into the current
+position and automatically surfaces a few current concerns. Checks, attacked
+pieces without geometric defenders, pins, and supported line changes do not
+require an explicit square query. Shared typed selections retain position and
+piece identities, exact fact sources, and omission counts for future GUI
+highlights. Raw relationships remain available through `changes` and inspection.
+
+Candidate summaries compare immediate root positions before narrating engine
+continuations. Defender identities distinguish additions, removals, replacements,
+and defense left unchanged by one alternative when another changes it. Each
+candidate retains its root delta and connected account, including provisional
+candidates without a completed engine line. These structural observations do
+not explain engine preference or prove tactical safety; `details` retains the
+continuation evidence and the limits of each assessment.
+
+Complex checks retain actual checker identities and distinguish direct from
+discovered roles, including double check. Structural forks group attacked
+targets, including a checked king; complementary check-and-attack effects remain
+visible when no single piece forks those targets. Opened-line explanations also
+cover en passant clearing both intervening pawns.
+
+Checking-threat analysis follows the same target identity across immediate legal
+defenses, even when different friendly pieces can capture it on different
+squares. It reports which defenses leave an immediate legal capture, with
+universal wording only for complete legal-reply coverage. It is
+not a forced material-win verdict. Optional target-square exchange evidence
+remains independently qualified, including unsupported checking captures.
+Structural observations remain available when verification is incomplete.
+
+- Extend the shared before/after facts with newly attacked targets, gained and
+  lost geometric defenders, cleared and blocked rays, changed blockers, and
+  changed absolute pins. Track persistent piece identities through captures,
+  castling, en passant, and promotion. Distinguish geometric defence from legal
+  recapture and tactical availability.
+- Add latent slider rays and local exchange evaluation (SEE), with explicit
+  supported cases and bounded work. These analysis internals are implemented.
+  SEE supplies exchange evidence, not overall move soundness or a reason to
+  discard sacrifices. Local results are available through application snapshots
+  and CLI inspection/details.
+- Examine checks, captures, promotions, and direct attacks in bounded legal
+  continuations. Recompute relationships after each ply, including counterchecks
+  and intermediate moves; selective forcing search is not a complete defence
+  search. Quiet responses and unsearched alternatives remain explicit gaps.
+  This local explorer is implemented at depth four and 10,000 aggregate nodes.
+  It records every examined immediate reply, omitted roots and replies, why each
+  witnessed line stopped, and continuity changes for replay. Focused piece
+  probes inspect every legal exit of the actual side's selected piece within the
+  local budget; they never flip the turn to inspect an opponent piece.
+- Build local safety, trapping, and overload assessments on those facts and
+  continuations. This internal consumer is implemented. It distinguishes
+  immediate established mate failure, deeper witnessed failure, incomplete
+  work, and no refutation found. It reports legal-exit coverage without
+  equating restricted mobility with a forced material win. Multiple defensive
+  contacts only nominate overload; a reported conflict requires legal play
+  where answering one attacked-piece duty abandons another and remains a
+  witnessed conflict rather than a universal forced-overload claim.
+- Retain the source, target, preconditions, before/after relationships, evidence,
+  and search coverage for each assessment. These are the basis for later broader
+  threat analysis; comprehensive bilateral threat classification remains deferred.
+- Expose the same explanations through CLI and interface-neutral snapshots with
+  stable references for future highlights, candidate previews, evidence replay,
+  and revision-safe updates. The interactive GUI itself remains deferred.
+
+Promotion already retains piece identity, updates piece type and geometric facts,
+and appears in move deltas and line material evidence. M2 regression coverage
+includes all four promotion types and capture-promotion effects. A future GUI will
+provide a choice among all four legal promotion types.
+
+M2 structural snapshots now record identity-bearing attack and geometric-defence
+contacts, geometrically undefended pieces, and latent slider rays through the next
+occupied square. Move deltas report gained and lost forms of those facts across
+captures, castling, en passant, and every promotion type without treating a
+geometric relationship as proof that a piece is safe or tactically lost.
+
+M2 exchange evaluation now searches legal captures and recaptures on one target
+square, including x-rays, pins, king legality, en passant, and capture-promotions.
+It is capped at 4,096 expanded positions and an enclosing deadline, yields every
+32 positions, and distinguishes unsupported chess branches from incomplete
+coverage. Its replayable line and 1/3/3/5/9 material result are perspective
+explicit. Unsupported or incomplete work has no material result, and a negative
+result remains evidence rather than a candidate filter.
+
+Ordinary requests retain the five-second engine search and add at most 250 ms
+of local work. An explicit focused probe has a fifteen-second aggregate budget
+after engine preparation, including at most one second of local work. Local and
+nested exchange search share deadline, node, cancellation, and every-32-node
+yield accounting. Focused move and piece probe commands expose the resulting
+evidence through the CLI and shared snapshots.
+
+Local material exposure reports an immediate capture of the moved piece only
+when completed target-square exchange evidence remains negative after root
+capture and promotion gains. It stays separate from mate refutation and
+move-safety conclusions. Sacrifice compensation and broader position value
+require separate engine evidence and remain unmeasured by this material model.
+
+M2 exposes these results through the shared snapshot and CLI. `changes` names
+the pieces and squares in structural transitions; `probe move` and `probe piece`
+run focused analysis; and `line` reconstructs a read-only candidate board at a
+requested ply. Concise output shows at most three priority facts, while details
+retain complete typed evidence and coverage. The actual GUI remains future work.
 
 ## Product aim
 
@@ -68,6 +209,14 @@ engine line.
 
 ## Board appearance
 
+- M2 persists one shared default of White, Black, or the imported
+  position's side to move at the bottom. CLI and future GUI imports without an
+  explicit override resolve this same setting, preventing adapter defaults from
+  drifting. Each interface may flip locally during analysis.
+  Resolve automatic orientation once on import; navigation does not flip the board
+  after every move. Orientation is presentation state and does not change canonical
+  squares, score perspective, position revision, or analysis requests. A GUI renders
+  the transform locally; a CLI can own the same preference in its display adapter.
 - Use the bundled MPChess SVG set by default.
 - Let users import and select a custom SVG piece set locally.
 - Require every theme to provide the same twelve white/black piece assets. Built-in
@@ -77,6 +226,12 @@ engine line.
   default without affecting games or analysis.
 
 ## Chess files and saved data
+
+- PGN movetext and typed moves accept canonical SAN or unique case-insensitive
+  shorthand with omitted capture/check/mate effects. Supplied effects must be
+  accurate; ambiguity, unspecified promotions, illegal moves, and malformed
+  PGN/FEN remain errors. In-memory output uses canonical SAN; typed commands
+  additionally accept UCI. See the [notation contract](COMMANDLINE.md#input-and-file-rules).
 
 - Import and parse one or more games from PGN, including headers, moves, and
   variations needed to navigate positions.
@@ -92,6 +247,7 @@ engine line.
 
 ## Training
 
+- Training begins after M1.
 - Use active recall: ask for controls, threats, and candidates before revealing
   verified misses.
 - Revisit important continuation nodes and distinguish omission, continuation,

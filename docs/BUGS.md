@@ -1,12 +1,19 @@
 # NamiChess Bugs
 
-Status: pre-implementation. No confirmed substantive defects are recorded.
+Status: M2 complete; no open confirmed defects. Resolved defects are recorded below.
 
 ## Defect ledger
 
 | ID | Status | Area | Summary | Evidence |
 |---|---|---|---|---|
-| — | — | — | No confirmed bugs yet. | — |
+| M2-001 | Fixed | Local exploration | Automatic terminal positions with geometric legal moves were expanded beyond game end. | `r3k3/1P6/8/8/8/8/8/4K3 w - - 0 1`, root `b7a8b`: insufficient-material draw incorrectly had five examined replies. Independent review reproduced it; terminal-source/root and assessment regressions now pass. |
+
+M2-001 is fixed by a terminal check at the source and immediately after each root,
+before enumerating replies. Output is a terminal root line with zero replies,
+or no root work when the source is already terminal. Terminal-source trapping
+assessment is unsupported rather than a claim about piece mobility. Regressions
+cover mirrored insufficient material, automatic 75-move and fivefold draws,
+claimable draws, and checkmate. The final full Stockfish gate passed 293 tests.
 
 ## What belongs here
 
