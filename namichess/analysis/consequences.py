@@ -200,35 +200,12 @@ def _derive(delta: MoveDelta) -> tuple[MoveConsequence, ...]:
                 pin.king, _ref(delta, RawFactKind.PIN_REMOVED, index),
             ))
 
-    before_by_square = {item.square: item for item in delta.before_pieces}
-    after_occupied = {item.square for item in delta.after_pieces}
     for contact_index, contact in enumerate(delta.contacts_added):
-        if contact.controller == moved or contact.subject == moved:
+        opened = _opened_line_facts(delta, contact_index)
+        if opened is None:
             continue
-        between = _squares_between(contact.controller_square.square, contact.subject_square.square)
-        if between is None or any(square in after_occupied for square in between):
-            continue
-        cleared = tuple(before_by_square[square].piece_id for square in between if square in before_by_square)
-        if not cleared or any(piece not in (moved, captured) for piece in cleared):
-            continue
-        ray_index = next((
-            index for index, ray in enumerate(delta.latent_rays_removed)
-            if ray.slider == contact.controller
-            and ray.source.square == contact.controller_square.square
-            and ray.blocker == cleared[0]
-        ), None)
-        if ray_index is None:
-            continue
+        cleared, opened_facts = opened
         consumed_added_contacts.add(contact_index)
-        opened_facts = [
-            _ref(delta, RawFactKind.LATENT_RAY_REMOVED, ray_index),
-            _ref(delta, RawFactKind.CONTACT_ADDED, contact_index),
-        ]
-        for blocker in cleared[1:]:
-            opened_facts.append(_ref(
-                delta,
-                RawFactKind.MOVED if blocker == moved else RawFactKind.CAPTURED,
-            ))
         pin_index = next((
             index for index, event in enumerate(result)
             if event.kind is ConsequenceKind.PINNED and event.subject == contact.subject
@@ -365,6 +342,45 @@ def _squares_between(source: str, target: str) -> tuple[str, ...] | None:
         file_index += file_step
         rank_index += rank_step
     return tuple(result)
+
+
+def _opened_line_facts(
+    delta: MoveDelta,
+    contact_index: int,
+) -> tuple[tuple[PieceId, ...], tuple[RawFactRef, ...]] | None:
+    contact = delta.contacts_added[contact_index]
+    moved = delta.moved.piece
+    captured = delta.captured.piece_id if delta.captured is not None else None
+    if contact.controller == moved or contact.subject == moved:
+        return None
+    between = _squares_between(contact.controller_square.square, contact.subject_square.square)
+    if between is None:
+        return None
+    before_by_square = {item.square: item for item in delta.before_pieces}
+    after_occupied = {item.square for item in delta.after_pieces}
+    if any(square in after_occupied for square in between):
+        return None
+    cleared = tuple(before_by_square[square].piece_id for square in between if square in before_by_square)
+    if not cleared or any(piece not in (moved, captured) for piece in cleared):
+        return None
+    ray_index = next((
+        index for index, ray in enumerate(delta.latent_rays_removed)
+        if ray.slider == contact.controller
+        and ray.source.square == contact.controller_square.square
+        and ray.blocker == cleared[0]
+    ), None)
+    if ray_index is None:
+        return None
+    sources = [
+        _ref(delta, RawFactKind.LATENT_RAY_REMOVED, ray_index),
+        _ref(delta, RawFactKind.CONTACT_ADDED, contact_index),
+    ]
+    for blocker in cleared[1:]:
+        sources.append(_ref(
+            delta,
+            RawFactKind.MOVED if blocker == moved else RawFactKind.CAPTURED,
+        ))
+    return cleared, tuple(sources)
 
 
 def _ref(delta: MoveDelta, kind: RawFactKind, index: int | None = None) -> RawFactRef:
