@@ -220,6 +220,8 @@ submits the selected immutable `PositionContext` and returns the shared
 `SessionView`; `Session.analysis_view(controller)` attaches only a
 matching-revision `AnalysisResult`. `Session.resolve_moves()`
 validates SAN/UCI comparison moves without moving the cursor.
+Supplied submission views must match the selected revision and position context;
+stale views are rejected before comparison resolution or controller mutation.
 
 `AnalysisController.submit()` is nonblocking. It retains the latest request and
 at most one pending replacement. `wait()`, `cancel()`, and `close()` are awaited;

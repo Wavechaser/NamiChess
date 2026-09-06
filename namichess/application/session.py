@@ -159,7 +159,7 @@ class Session:
         compare: tuple[str, ...] = (),
     ) -> SessionView:
         """Submit analysis and return the revision-safe shared application view."""
-        current = view or self.view()
+        current = self._current_view(view)
         moves = self.resolve_moves(compare) if compare else ()
         controller.submit(current.position, current.revision, moves)
         return self.analysis_view(controller, view=current)
@@ -176,6 +176,13 @@ class Session:
         if result is not None and result.revision != current.revision:
             result = None
         return dataclasses.replace(current, analysis=result)
+
+    def _current_view(self, supplied: SessionView | None) -> SessionView:
+        if supplied is None:
+            return self.view()
+        if supplied.revision != self._revision or supplied.position != self._context(self._require_node()):
+            raise SessionError("analysis view is stale; request analysis from the current position")
+        return supplied
 
     def view(self) -> SessionView:
         document = self._require_document()

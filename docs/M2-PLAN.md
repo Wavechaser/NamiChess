@@ -70,6 +70,9 @@ This register is the completion denominator. New findings are recorded separatel
 | M2.01/M2.03 | Coordinator | Consecutive coverage gaps claimed old tests as evidence for new semantics | Verification-process weakness: require explicit claim-to-test mapping; no evidence justifying a runtime refactor |
 | M2.04 | Independent reviewer `orientation` | Legal minimax, forced non-check recapture, full-history scratch board, special moves, terminal/check unsupported and limits independently inspected; shared focused suite 51 passed | Accepted; standalone gate 16 passed; ordinary builder suite 190 passed, 10 skipped before concurrent edits |
 | M2.04 | Coordinator | No candidate-selection call site exists in this checkpoint, so SEE cannot gate candidates | Direct inspection closes standalone non-gating requirement; add integration regression with M2.05 call site |
+| M2.05 | Independent reviewer `review_search` | Stale supplied view could submit old context; analysis and probes shared the defect | Central session revision/context validation closes it before comparison resolution or submission; baseline boundary fix committed separately |
+| M2.05 | Independent reviewer `review_search` | Piece-probe test counted engine roots without proving they were selected-piece exits | Exact move mapping now asserted; independent gate 84 passed, 2 skipped; no remaining blocker |
+| M2.05 | Coordinator | Shared continuation helper briefly introduced an analysis-to-application import cycle | Corrected ownership to analysis/continuations; no delayed-import workaround or additional framework |
 
 Append substantive findings here with their checkpoint, independent source, direct evidence, and disposition. Similar consecutive findings must explicitly record whether they reveal an upstream design defect.
 

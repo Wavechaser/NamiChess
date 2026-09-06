@@ -280,6 +280,11 @@ submission and legal comparison-move resolution, so a later GUI does not repeat
 request sequencing or stale-result policy. CLI cancellation settles before a
 later position request can be submitted.
 
+Submission rejects a supplied snapshot whose revision or position context no
+longer matches the selected node, before resolving comparison moves or changing
+controller state. Interfaces cannot restart obsolete analysis by returning a
+previously displayed snapshot.
+
 The interface-neutral serialization adapter renders the shared application view
 as one `schema_version: 2` JSON snapshot; the CLI delegates to it rather than
 owning the wire shape. Squares use algebraic coordinates, moves carry

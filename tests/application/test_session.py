@@ -106,3 +106,21 @@ def test_analysis_view_filters_results_from_another_revision() -> None:
     assert session.analysis_view(controller).analysis == controller.latest  # type: ignore[arg-type]
     session.play("Ra2")
     assert session.analysis_view(controller).analysis is None  # type: ignore[arg-type]
+
+
+def test_request_analysis_rejects_stale_supplied_view_before_submission() -> None:
+    session = Session()
+    stale = session.load_fen("7k/8/8/8/8/8/8/R6K w - - 0 1")
+    session.play("Ra2")
+
+    class Controller:
+        latest = None
+        submitted = False
+
+        def submit(self, *args, **kwargs):
+            self.submitted = True
+
+    controller = Controller()
+    with pytest.raises(SessionError, match="stale"):
+        session.request_analysis(controller, view=stale)  # type: ignore[arg-type]
+    assert not controller.submitted

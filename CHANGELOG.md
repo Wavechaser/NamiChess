@@ -4,6 +4,11 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### Stale analysis submission boundary — 2026-09-06
+
+- Reject obsolete supplied session views before resolving comparison moves or
+  submitting analysis, preserving the selected position and controller state.
+
 ### M2 bounded local exchange evaluation — 2026-09-06
 
 - Added asynchronous target-square capture/recapture minimax with legal stop
