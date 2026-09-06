@@ -1,6 +1,6 @@
 # NamiChess Features
 
-Status: M1 complete; M2 implementation is underway. Strict import, navigation,
+Status: M1 and M2 complete. Strict import, navigation,
 static inspection, bounded engine analysis, candidate comparison, text details,
 shared JSON snapshots, shared orientation, structural continuity, bounded local
 exchange evaluation, focused local move or piece probes, and qualified local
@@ -30,11 +30,12 @@ promotion, castling-rook, attack, slider-ray, pin, and check changes.
 The M2 section below describes implemented additions. Later sections describe
 the wider product roadmap and do not imply that every listed feature is available.
 
-## M2 direction — active scope
+## M2 — continuity and local analysis
 
 M2 centers on continuity: explain how each legal move changes piece relationships
 and what those changes enable. Its analysis and shared interface additions are
-implemented; acceptance evidence is recorded in the milestone plan.
+implemented; acceptance evidence is recorded in the
+[historical milestone plan](obsolete/M2-PLAN.md).
 
 - Extend the shared before/after facts with newly attacked targets, gained and
   lost geometric defenders, cleared and blocked rays, changed blockers, and
@@ -93,8 +94,8 @@ Ordinary requests retain the five-second engine search and add at most 250 ms
 of local work. An explicit focused probe has a fifteen-second aggregate budget
 after engine preparation, including at most one second of local work. Local and
 nested exchange search share deadline, node, cancellation, and every-32-node
-yield accounting. Focused probe commands and their CLI presentation remain part
-of the pending interface checkpoint.
+yield accounting. Focused move and piece probe commands expose the resulting
+evidence through the CLI and shared snapshots.
 
 Local material exposure reports an immediate capture of the moved piece only
 when completed target-square exchange evidence remains negative after root

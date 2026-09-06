@@ -1,6 +1,12 @@
 # M2 Implementation Plan — Continuity and Local Tactical Understanding
 
-Status: active. M2.01 through M2.07 are accepted; final acceptance and archival remain.
+**Historical status:** Retired after accepted completion on 2026-09-06.
+**Status:** All eight checkpoints accepted.
+**Active owners:** Current CLI and shared contracts are in
+[COMMANDLINE.md](../COMMANDLINE.md), durable boundaries in
+[ARCHITECTURE.md](../ARCHITECTURE.md), and current/planned behavior in
+[FEATURES.md](../FEATURES.md). This document retains implementation decisions,
+review findings, and acceptance evidence; it is not an active work queue.
 
 ## Main objectives
 
@@ -54,7 +60,7 @@ Static relationships remain usable without an engine. Local search belongs to th
 | M2.05 | Cancelable local exploration and deeper probes | M2.04 | Coverage, budgets, cancellation, engine integration | complete |
 | M2.06 | Evidence-backed local assessments | M2.05 | Positive and adversarial counterexamples | complete |
 | M2.07 | Integrated CLI explanations and GUI-ready views | M2.02, M2.06 | Shared-consumer and interactive CLI tests | complete |
-| M2.08 | Accepted end-to-end M2 delivery | M2.07 | Integration and adversarial sweep | pending |
+| M2.08 | Accepted end-to-end M2 delivery | M2.07 | Integration and adversarial sweep | complete |
 
 This register is the completion denominator. New findings are recorded separately and do not silently add requirements.
 
@@ -87,6 +93,7 @@ This register is the completion denominator. New findings are recorded separatel
 | M2.07/M2.08 | Independent reviewer `review_interfaces` | Rebuilt non-CLI consumer resolves real produced piece/square/position, explanation/evidence, all three assessment evidence kinds and material exposure; final interface/terminal review: 95 passed | Presentation and reference findings closed; terminal-source trapping is unsupported rather than an immobility claim |
 | M2.08 | Coordinator final Stockfish gate | Full engine-enabled suite with fresh GUID `%TEMP%` base: 292 passed in 35.87 seconds, no skips/failures | Terminal-boundary and integrated interface implementation green; final interactive confirmation and archive cleanup remain |
 | M2.07/M2.08 | Independent reviewer `review_interfaces` | Final subject/catalog/terminal semantics recheck: 81 passed; terminal-source trapping is unsupported, genuine nonterminal no-exit cases remain distinct | Accepted; terminal boundary committed separately as `65fa136` |
+| M2.08 | Coordinator final acceptance | Ordinary suite: 283 passed, 10 optional engine skips in 15.50 seconds; final Stockfish suite: 293 passed in 34.91 seconds | All gates accepted; M2.07 is `1fbc4f0`; actual GUI and comprehensive threats remain deferred |
 
 Append substantive findings here with their checkpoint, independent source, direct evidence, and disposition. Similar consecutive findings must explicitly record whether they reveal an upstream design defect.
 
@@ -388,11 +395,44 @@ All integration, platform, repository-cleanliness, documentation, and independen
 
 M2.08 is a separate gate, not a substitute for checkpoint-owned regressions. It must exercise behavior across checkpoint boundaries, the broadest ordinary and Stockfish suites, Windows CLI behavior, parser rejection and recovery, settings permissions and atomicity, truthful unsupported/incomplete results, cancellation and retained lifetimes, source-file preservation, public-contract consistency, and repository cleanliness. Overall completion requires recorded terminal observations and an independent adversarial review; green checkpoint tests alone are insufficient.
 
-## Resumption block
+## Final acceptance observations
 
-- **Current checkpoint:** M2.08. M2.01 `98268b5`, M2.02 `c6241a1`, M2.03 `9bc2763`, M2.04 `56e73a2`, M2.05 `7d01281`, M2.06 `31b78ed`; shared stale-view fix `8cc64c3`; terminal-boundary fix `65fa136`; M2.07 accepted.
+- The ordinary and engine commands above used fresh GUID directories under
+  `%TEMP%` with `-p no:cacheprovider`; both exited successfully. The engine run
+  set `NAMICHESS_TEST_ENGINE` to the ignored local Stockfish executable.
+- `tests/interfaces/test_m2_integration.py` covers Unicode two-game imports and
+  exact SHA-256 preservation, variation navigation, capture-underpromotion/back,
+  comparison and ply-zero/one preview invariance, local flips, move/piece probes,
+  malformed settings preservation, invalid imports, engine failure/retry, and
+  the above-32-piece engine boundary.
+- Its lifecycle stress submits fifty probe/analyze replacements and ten
+  navigation requests. The final request is 60 at the current revision, with
+  maximum one active and one pending request; retained candidates and nodes
+  meet injected bounds and active/pending/worker state clears on settlement and
+  close. This uses minimal injected budgets to isolate lifecycle behavior;
+  dedicated local/SEE tests verify ordinary depth, node, deadline and yield limits.
+- The optional real-engine integration workflow verifies cancellation/retry and
+  owned process/transport settlement. The full final run includes those tests.
+- Coordinator Windows PTY runs exercised real Stockfish promotion analysis,
+  board orientation and flipping, candidate preview, capture-underpromotion/back,
+  piece and move probes, cancellation/retry, inspection and clean exit. The final
+  code displays engine-reported mate ahead of incidental PV facts, labels the
+  assessed pawn, and keeps an insufficient-material bishop probe unsupported
+  with zero exit coverage. Flipping that finished position preserves its result.
+- Independent architecture review covered the complete M2 diff and 590 generated
+  legal transitions. Independent interface review closed each presentation and
+  reference-resolution finding; the terminal-boundary counterexample became a
+  separate focused fix with mirrored and history-aware regressions.
+- Public behavior, settings, schema, ownership, and GUI deferral are reconciled
+  in their owning documents. Review-owned temporary artifacts were removed;
+  imported data, engine binaries, environments and existing local artifacts were
+  preserved. `git diff --check` passed before the final acceptance commit.
+
+## Historical resumption block
+
+- **Current checkpoint:** None; M2 is accepted. M2.01 `98268b5`, M2.02 `c6241a1`, M2.03 `9bc2763`, M2.04 `56e73a2`, M2.05 `7d01281`, M2.06 `31b78ed`, M2.07 `1fbc4f0`; shared stale-view fix `8cc64c3`; terminal-boundary fix `65fa136`.
 - **Completed evidence:** Baseline commit is `8b03c09`; pre-M2 baselines were 145 passed plus 10 skipped ordinarily and 155 passed with Stockfish in an isolated temporary directory. M2.01 focused serializer/CLI verification passed 21 tests after creating the missing workspace temp parent.
-- **Next action:** Record the final ordinary and interactive terminal observations, reconcile public completion status, archive the accepted plan, and commit M2.08 integration tests and acceptance documentation.
+- **Next action:** None within M2. Plan a later milestone separately using the active product and interface documents.
 - **Established verification:** `.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp <fresh-temp-path>`; use `NAMICHESS_TEST_ENGINE` and the executable above for the final engine sweep.
 - **Blockers/unresolved decisions:** None currently. A shared Windows pytest temp permission failure is handled with a fresh directory.
 - **Preserve:** Imported files, `.tools`, virtual environments, local settings, unrelated worktree changes, and all source content outside the named checkpoint paths.

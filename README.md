@@ -5,9 +5,9 @@ purpose is to explain what a position permits, what a move changes, which threat
 matter, and which sufficiently strong continuation a human can understand and
 keep playing.
 
-The first milestone is complete. The interactive CLI joins
-strict PGN/FEN navigation, shared static facts, and bounded Stockfish candidate
-evidence. The product definition is in
+M1 and M2 are complete. The interactive CLI joins strict PGN/FEN navigation,
+relationship continuity, bounded Stockfish and local evidence, focused probes,
+and shared views for a future GUI. The product definition is in
 [docs/chess-copilot-spec.md](docs/chess-copilot-spec.md), and current CLI/API
 behavior is in [docs/COMMANDLINE.md](docs/COMMANDLINE.md).
 
@@ -101,6 +101,7 @@ paths.
 - [Command-line guide](docs/COMMANDLINE.md)
 - [Historical M1 implementation plan](docs/obsolete/M1-PLAN.md)
 - [Historical M1 invariant review](docs/obsolete/M1-INTEGRATION-REVIEW.md)
+- [Historical M2 implementation and acceptance plan](docs/obsolete/M2-PLAN.md)
 - [Defense](docs/DEFENSE.md)
 - [Bugs](docs/BUGS.md)
 - [Changelog](CHANGELOG.md)

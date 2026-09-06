@@ -4,6 +4,17 @@ Completed project changes are recorded here newest-first.
 
 ## Unreleased
 
+### M2 final acceptance — 2026-09-06
+
+- Verified Unicode multi-game imports, exact source-file preservation, special
+  moves, comparison and read-only previews, shared references, orientation,
+  focused probes, cancellation/retry, and failure recovery across the CLI.
+- Exercised fifty rapid replacements plus navigation submissions with one
+  active and one pending request maximum and complete worker settlement.
+- Completed independent architecture and interface reviews, interactive Windows
+  checks, 283 ordinary tests with 10 optional skips, and 293 Stockfish-enabled
+  tests; archived the accepted M2 plan. Actual GUI work remains deferred.
+
 ### M2 shared explanations and focused CLI — 2026-09-06
 
 - Added `changes`, focused move and piece probes, detailed evidence, and

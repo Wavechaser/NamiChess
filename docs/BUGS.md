@@ -1,6 +1,6 @@
 # NamiChess Bugs
 
-Status: M2 verification. Confirmed defects and their resolutions are recorded below.
+Status: M2 complete; no open confirmed defects. Resolved defects are recorded below.
 
 ## Defect ledger
 
@@ -13,7 +13,7 @@ before enumerating replies. Output is a terminal root line with zero replies,
 or no root work when the source is already terminal. Terminal-source trapping
 assessment is unsupported rather than a claim about piece mobility. Regressions
 cover mirrored insufficient material, automatic 75-move and fivefold draws,
-claimable draws, and checkmate. The full Stockfish gate passed 292 tests.
+claimable draws, and checkmate. The final full Stockfish gate passed 293 tests.
 
 ## What belongs here
 

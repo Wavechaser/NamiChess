@@ -141,9 +141,9 @@ recapture. It is not a universal overload proof.
 
 Assessment evidence is accepted only when its position, root, immediate reply,
 move-delta sequence, completed exchange line, termination, and coverage agree.
-An unresolved limit line cannot become affirmative mate evidence. The consumer
-is available internally; snapshot and CLI rendering belong to the pending
-integrated-interface checkpoint.
+An unresolved limit line cannot become affirmative mate evidence. Shared
+snapshots carry the resulting assessments, and CLI rendering consumes them
+without rerunning search.
 
 `AnalysisResult` carries the immutable `ProbeSubject`, resolved `LocalLimits`,
 and optional `LocalExploration` beside engine candidates. The shared
