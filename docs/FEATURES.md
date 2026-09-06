@@ -58,6 +58,20 @@ candidates without a completed engine line. These structural observations do
 not explain engine preference or prove tactical safety; `details` retains the
 continuation evidence and the limits of each assessment.
 
+Complex checks retain actual checker identities and distinguish direct from
+discovered roles, including double check. Structural forks group attacked
+targets, including a checked king; complementary check-and-attack effects remain
+visible when no single piece forks those targets. Opened-line explanations also
+cover en passant clearing both intervening pawns.
+
+Checking-threat analysis follows the same target identity across immediate legal
+defenses, even when different friendly pieces can capture it on different
+squares. It reports which defenses leave an immediate legal capture, with
+universal wording only for complete legal-reply coverage. It is
+not a forced material-win verdict. Optional target-square exchange evidence
+remains independently qualified, including unsupported checking captures.
+Structural observations remain available when verification is incomplete.
+
 - Extend the shared before/after facts with newly attacked targets, gained and
   lost geometric defenders, cleared and blocked rays, changed blockers, and
   changed absolute pins. Track persistent piece identities through captures,

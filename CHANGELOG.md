@@ -14,8 +14,11 @@ Completed changes are grouped by milestone, newest first.
   with explicit evidence, omissions, and coverage.
 - Added connected move accounts, automatic position attention, immediate
   candidate comparisons, richer `changes`/inspection/details, and read-only
-  previews. Shared schema-version-3 views retain fact sources, identities,
+  previews. Shared schema-version-4 views retain fact sources, identities,
   selection limits, and navigation references for a later GUI.
+- Connected complex discoveries, explicit checker roles, double checks, and
+  structural forks with bounded checking-threat response evidence, keeping
+  capture availability separate from material-gain claims.
 - Condensed progress and score output, and consolidated repeated catalog loads,
   fact and assessment computation, PGN preparation, and exposure rendering.
 - Added persistent shared orientation defaults, import overrides, and local
