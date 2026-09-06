@@ -275,8 +275,15 @@ def _derive(delta: MoveDelta) -> tuple[MoveConsequence, ...]:
         ))
 
     occupied_after = {item.square for item in delta.after_pieces}
+    vacated_origins = {delta.moved.before.square}
+    if delta.castling_rook is not None:
+        vacated_origins.add(delta.castling_rook.before.square)
     for index, attack in enumerate(delta.attacks_added):
-        if attack.attacker != moved or attack.target.square in occupied_after:
+        if (
+            attack.attacker != moved
+            or attack.target.square in occupied_after
+            or attack.target.square in vacated_origins
+        ):
             continue
         result.append(_event(
             ConsequenceKind.GAINED_CONTROL, moved, None, attack.source, attack.target,

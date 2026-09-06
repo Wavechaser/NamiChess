@@ -197,6 +197,24 @@ def test_selection_is_bounded_ordered_and_reports_omissions() -> None:
     )
 
 
+def test_empty_control_fallback_skips_vacated_origin_but_keeps_occupied_defense() -> None:
+    _, result = account("4k3/8/8/3p4/4P3/8/1N6/R5K1 w - - 0 1", "a1e1")
+    gained = [item for item in result.consequences if item.kind is ConsequenceKind.GAINED_CONTROL]
+
+    assert any(item.subject is not None and item.target.square == "e4" for item in gained)
+    assert all(not (item.subject is None and item.target.square == "a1") for item in gained)
+
+
+def test_empty_control_fallback_keeps_real_new_pawn_control() -> None:
+    _, result = account(chess.STARTING_FEN, "e2e4")
+    assert any(
+        item.kind is ConsequenceKind.GAINED_CONTROL
+        and item.subject is None
+        and item.target.square == "d5"
+        for item in result.consequences
+    )
+
+
 def test_raw_fact_reference_is_scoped_to_exact_root_delta_and_rejects_negative_index() -> None:
     first_before, first_after = contexts(chess.STARTING_FEN, "e2e4")
     second_before, second_after = contexts(chess.STARTING_FEN, "d2d4")
