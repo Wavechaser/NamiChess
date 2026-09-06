@@ -228,7 +228,8 @@ the source for full raw details.
 
 A completed result shows its state and coverage, current-position check or
 legal-mate facts, and then the candidate table. Bounded local assessments follow
-the table. Candidate rows lead with the shared immediate root structure. When selected
+the table. Without a selected checking-threat conclusion, candidate rows lead
+with the shared immediate root structure. When selected
 roots differ in a piece's geometric defenders, the row identifies added,
 removed, or replaced defender identities; it says defense is unchanged only
 when the shared comparison records equality with another differing root. Check,
@@ -245,6 +246,24 @@ in that candidate's row and takes priority over repeated engine mate prose. The
 engine score column already displays a mate score; the qualified reported-mate
 sentence and survey/probe disagreement prose remain in `details` with the
 complete evidence.
+
+When bounded local evidence examines a checking move's replies, the candidate
+row can state whether an attacked target has an immediate legal capture after
+every reply, after only some replies, or with incomplete coverage. The row uses
+the application's ordered selection of at most two targets and response groups;
+it does not regroup responses or recalculate chess facts. The compact row shows
+the first selected target so its supporting mechanisms remain visible. One
+outcome clause and its supporting check or attack mechanisms share the existing three-clause
+structural budget. An opponent mate-in-one warning remains first. Extra targets
+or branch groups point to `details` instead of expanding the table.
+
+`details` places `Checking-threat evidence` before engine continuation evidence.
+It lists every retained target and legal response with SAN and UCI, the response
+roles actually recorded by the verifier, the target's response-position square,
+and any legal immediate capture witness. When the target-square exchange model
+ran, its status, model, node coverage, limit, and material result are supporting
+detail. Capture availability does not mean that the capture is safe or profitable,
+that the target is won, or that the checking move forces a material gain.
 
 `failed` means the engine request failed while the static session remains usable.
 If the configured file was temporarily unavailable, restore it at the same path
@@ -267,6 +286,14 @@ continuation consequences. Checker and king squares belong to the resulting
 position. A `line.check` explanation now references the actual checking pieces;
 its continuation consequence retains the mover separately. Consumers should
 use those explicit roles for highlights, including discovered and double check.
+Session, preview, and candidate-root records also carry `mechanisms`, describing
+check roles, new attacks, and geometric forks. Candidate `threat_selection`
+references retained `analysis.local.roots[].threats`; each local root retains
+`root_delta` for the effect's raw fact sources. A threat reference carries the
+original position, request-scoped root position, root UCI, and threat index.
+Selected response groups carry indices into the raw responses. Their target
+coordinate is a grouping key; use each raw response's scoped square references
+for highlights. Selection omissions do not remove raw evidence.
 Schema version 3 preserves those fields and adds an optional bounded
 `move_account` beside `previous_move`. Each consequence carries typed piece and
 position-scoped square references plus `supporting_facts` that resolve to the

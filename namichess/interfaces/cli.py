@@ -21,12 +21,14 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from namichess.application.imports import ImportError as ChessImportError
 from namichess.analysis.consequences import ConsequenceKind, MoveAccount, resolve_raw_fact
 from namichess.analysis.mechanisms import MoveMechanisms
+from namichess.analysis.threats import DefensiveReplyRole, ThreatConclusion, ThreatReplyOutcome
 from namichess.application.attention import AttentionKind, AttentionSelection
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult
 from namichess.analysis.evidence import Explanation
 from namichess.analysis.static import ContactKind, MoveDelta, PieceContact
 from namichess.application.session import Session, SessionError
 from namichess.application.preview import CandidateLinePreview, PreviewError, preview_candidate_line
+from namichess.application.threats import resolve_threat
 from namichess.application.views import SessionView
 from namichess.interfaces.explanations import ExplanationCatalog
 from namichess.domain.models import PiecePlacement
@@ -122,7 +124,7 @@ def render_analysis(result: AnalysisResult, catalog: ExplanationCatalog) -> str:
         lines.append("#  Rank  Move  Engine score  Summary")
     for number, candidate in enumerate(result.candidates, 1):
         candidate_explanations = [explanations[ref] for ref in candidate.explanation_refs if ref in explanations]
-        summary = _candidate_summary(candidate, candidate_explanations, catalog)
+        summary = _candidate_summary(candidate, candidate_explanations, catalog, result.local)
         lines.append(
             f"{number}  {candidate.rank if candidate.rank is not None else '-'}  {candidate.san}  "
             f"{_score_text(candidate)}  {summary}"
@@ -139,6 +141,7 @@ def render_details(result: AnalysisResult, number: int, catalog: ExplanationCata
     explanations = {item.explanation_id: item for item in result.explanations}
     lines = [f"Candidate {number}: {candidate.san} ({candidate.uci})", f"Score: {_score_text(candidate)}"]
     lines.append("Structure: " + "; ".join(_candidate_structure_clauses(candidate, compact=False)))
+    lines.extend(_threat_detail_lines(result, candidate))
     for ref in candidate.explanation_refs:
         if ref in explanations:
             lines.append(catalog.render(explanations[ref]))
@@ -213,11 +216,8 @@ def _candidate_summary(
     candidate: CandidateResult,
     explanations: list[Explanation],
     catalog: ExplanationCatalog,
+    local,
 ) -> str:
-    clauses = (
-        ["structure unavailable"]
-        if candidate.root_structure is None else list(_candidate_structure_clauses(candidate, compact=True))
-    )
     warning = next((
         item for item in explanations
         if item.catalog_id == "candidate.allows_opponent_mate_in_one"
@@ -226,12 +226,182 @@ def _candidate_summary(
         warning = next((
             item for item in explanations if item.catalog_id == "engine.reported_mate"
         ), None)
-    if warning is not None:
-        clauses.append(catalog.render(warning))
+    clauses = [catalog.render(warning)] if warning is not None else []
+    threat_clauses = _threat_summary_clauses(candidate, local)
+    clauses.extend(threat_clauses)
+    structure_limit = max(0, 3 - len(threat_clauses))
+    clauses.extend(
+        ("structure unavailable",)
+        if candidate.root_structure is None
+        else _candidate_structure_clauses(
+            candidate, compact=True, substantive_limit=structure_limit,
+        )
+    )
     return "; ".join(clauses)
 
 
-def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -> tuple[str, ...]:
+def _threat_summary_clauses(candidate: CandidateResult, local) -> tuple[str, ...]:
+    selection = candidate.threat_selection
+    if selection is None or local is None:
+        return ()
+    root = next(item for item in local.roots if item.root_uci == selection.root_uci)
+    assert root.root_delta is not None
+    clauses = []
+    compact_threats = selection.threats[:1]
+    for selected in compact_threats:
+        threat = resolve_threat(local, selected.reference)
+        target = _account_piece_label(root.root_delta, threat.effect.target)
+        capture_count = sum(
+            len(group.response_indices)
+            for group in selected.response_groups
+            if group.outcome is ThreatReplyOutcome.CAPTURE_AVAILABLE
+        )
+        if threat.conclusion is ThreatConclusion.CAPTURE_AVAILABLE_EVERY_REPLY:
+            clause = (
+                f"{target} can be captured after every legal reply "
+                f"({threat.examined_reply_count}/{threat.legal_reply_count})"
+            )
+        elif threat.conclusion is ThreatConclusion.CAPTURE_AVAILABLE_SOME_REPLY:
+            clause = (
+                f"{target} can be captured after {capture_count} of "
+                f"{threat.legal_reply_count} legal replies; other replies avoid an immediate capture"
+            )
+        elif threat.conclusion is ThreatConclusion.INCOMPLETE:
+            clause = (
+                f"capture coverage for {target} is incomplete "
+                f"({threat.examined_reply_count}/{threat.legal_reply_count} replies examined)"
+            )
+        elif threat.conclusion is ThreatConclusion.NO_IMMEDIATE_CAPTURE:
+            clause = (
+                f"no immediate capture of {target} was found after "
+                f"{threat.examined_reply_count}/{threat.legal_reply_count} replies"
+            )
+        else:
+            clause = f"no legal reply remains to test a capture of {target}"
+
+        examples = [
+            _threat_group_example(threat, group)
+            for group in selected.response_groups
+            if group.outcome is ThreatReplyOutcome.CAPTURE_AVAILABLE
+            and group.capture_san is not None
+        ]
+        if examples:
+            clause += "; " + "; ".join(examples[:2])
+        if len(selected.response_groups) > min(2, len(examples)) or threat.omitted_replies:
+            clause += "; more branches in details"
+        clauses.append(clause)
+    hidden_threats = selection.omitted_count + len(selection.threats) - len(compact_threats)
+    if hidden_threats and clauses:
+        clauses[-1] += f"; {hidden_threats} more threat(s) in details"
+    return tuple(clauses)
+
+
+def _threat_group_example(threat, group) -> str:
+    responses = tuple(threat.responses[index] for index in group.response_indices)
+    if group.roles == (DefensiveReplyRole.KING_MOVE,) and len(responses) > 1:
+        subject = f"{len(responses)} king replies"
+    elif len(responses) == 1:
+        subject = responses[0].reply_san
+    else:
+        subject = f"{len(responses)} replies"
+    verb = "allows" if len(responses) == 1 else "allow"
+    return f"{subject} {verb} {group.capture_san}"
+
+
+def _threat_detail_lines(result: AnalysisResult, candidate: CandidateResult) -> tuple[str, ...]:
+    selection = candidate.threat_selection
+    if selection is None or result.local is None:
+        return ()
+    root = next(item for item in result.local.roots if item.root_uci == selection.root_uci)
+    assert root.root_delta is not None
+    selected_indices = [item.reference.threat_index for item in selection.threats]
+    ordered_indices = (*selected_indices, *(
+        index for index in range(len(root.threats)) if index not in selected_indices
+    ))
+    lines = ["Checking-threat evidence:"]
+    for display_index, threat_index in enumerate(ordered_indices, 1):
+        threat = root.threats[threat_index]
+        if threat_index in selected_indices:
+            selected = selection.threats[selected_indices.index(threat_index)]
+            threat = resolve_threat(result.local, selected.reference)
+        target = _account_piece_label(root.root_delta, threat.effect.target)
+        lines.append(
+            f"Threat {display_index}: {target}; {_threat_conclusion_text(threat)}; "
+            f"mechanism: {_threat_effect_text(root.root_delta, threat)}"
+        )
+        for response_index, response in enumerate(threat.responses, 1):
+            roles = _english_list(tuple(role.value.replace("_", " ") for role in response.roles)) or "legal reply"
+            detail = (
+                f"  Response {response_index}: {response.reply_san} ({response.reply_uci}); "
+                f"roles: {roles}; target on {response.target_square.square}"
+            )
+            if response.capture_san is not None and response.capture_actor is not None:
+                actor = _threat_piece_label(
+                    root.root_delta, response.capture_actor,
+                    response.capture_source.square if response.capture_source is not None else None,
+                )
+                detail += f"; capture available: {actor} can play {response.capture_san}"
+                if response.capture_source is not None and response.capture_destination is not None:
+                    detail += (
+                        f" [{response.capture_source.square}→"
+                        f"{response.capture_destination.square}]"
+                    )
+            else:
+                detail += f"; outcome: {response.outcome.value.replace('_', ' ')}"
+            if response.exchange is not None:
+                exchange = response.exchange
+                detail += (
+                    f"; exchange {exchange.status.value}; model {exchange.model}; "
+                    f"nodes {exchange.nodes}/{exchange.node_limit}"
+                )
+                if exchange.material_result is not None:
+                    detail += f"; material result {exchange.material_result:+d} for {exchange.perspective}"
+                if exchange.limit_reached is not None:
+                    detail += f"; limit {exchange.limit_reached.value}"
+            lines.append(detail)
+        if threat.omitted_replies:
+            lines.append(
+                "  Unexamined replies: " + " ".join(threat.omitted_replies)
+            )
+    return tuple(lines)
+
+
+def _threat_conclusion_text(threat) -> str:
+    label = threat.conclusion.value.replace("_", " ")
+    return f"{label}; coverage {threat.examined_reply_count}/{threat.legal_reply_count}"
+
+
+def _threat_effect_text(delta: MoveDelta, threat) -> str:
+    check = threat.effect.check
+    king = _account_piece_label(delta, check.checked_king)
+    checker_labels = tuple(_account_piece_label(delta, item.piece) for item in check.checkers)
+    if len(check.checkers) > 1:
+        check_text = f"double check on {king} by {_english_list(checker_labels)}"
+    else:
+        checker = check.checkers[0]
+        role = "discovered check" if checker.role.value == "discovered" else "check"
+        check_text = f"{role} on {king} by {checker_labels[0]}"
+    attacks = tuple(
+        f"{_account_piece_label(delta, attack.actor)} geometrically attacks "
+        f"{_account_piece_label(delta, attack.target)}"
+        for attack in threat.effect.attacks
+    )
+    return "; ".join((check_text, *attacks))
+
+
+def _threat_piece_label(delta: MoveDelta, piece_id, square: str | None) -> str:
+    placement = next(
+        (item for item in (*delta.after_pieces, *delta.before_pieces) if item.piece_id == piece_id),
+        None,
+    )
+    piece_type = placement.piece_type if placement is not None else piece_id.original_piece_type
+    location = square or (placement.square if placement is not None else piece_id.origin_square)
+    return f"{piece_type} {location}"
+
+
+def _candidate_structure_clauses(
+    candidate: CandidateResult, *, compact: bool, substantive_limit: int = 3,
+) -> tuple[str, ...]:
     structure = candidate.root_structure
     if structure is None:
         return ("unavailable",)
@@ -245,11 +415,11 @@ def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -
         check_clause, check_sources = mechanism_entries[0]
         mechanism_entries = ((", ".join((*direct, check_clause)), check_sources), *mechanism_entries[1:])
         direct = ()
-    mechanism_limit = min(3, len(mechanism_entries)) if compact else len(mechanism_entries)
+    mechanism_limit = min(substantive_limit, len(mechanism_entries)) if compact else len(mechanism_entries)
     for clause, sources in mechanism_entries[:mechanism_limit]:
         clauses.append(clause)
     displayed_mechanisms = tuple(sources for _, sources in mechanism_entries[:mechanism_limit])
-    remaining_budget = max(0, 3 - mechanism_limit) if compact else None
+    remaining_budget = max(0, substantive_limit - mechanism_limit) if compact else None
     retained_defense_clauses = []
     retained_defense_sources = []
     for change in structure.defense_changes:
@@ -295,7 +465,10 @@ def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -
         structure.delta, structure.account, frozenset(displayed_sources),
         displayed_mechanisms,
     )
-    remaining = max(0, 3 - mechanism_limit - defense_limit) if compact else len(account_clauses)
+    remaining = (
+        max(0, substantive_limit - mechanism_limit - defense_limit)
+        if compact else len(account_clauses)
+    )
     shown_account = account_clauses[:remaining]
     clauses.extend(shown_account)
 
