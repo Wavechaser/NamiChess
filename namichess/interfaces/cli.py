@@ -20,6 +20,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 
 from namichess.application.imports import ImportError as ChessImportError
 from namichess.analysis.consequences import ConsequenceKind, MoveAccount, resolve_raw_fact
+from namichess.analysis.mechanisms import MoveMechanisms
 from namichess.application.attention import AttentionKind, AttentionSelection
 from namichess.application.analysis import AnalysisController, AnalysisResult, AnalysisState, CandidateResult
 from namichess.analysis.evidence import Explanation
@@ -56,6 +57,8 @@ def render_board(
     lines.append(f"Orientation: {orientation.value}")
     lines.append(f"Turn: {view.turn}")
     lines.append(f"Status: {view.status.value}")
+    if view.facts.checked_king is not None and not (view.mechanisms and view.mechanisms.check):
+        lines.append("Check: " + _current_check_clause(view.facts))
     if view.outcome:
         lines.append(f"Outcome: {view.outcome}")
     claims = []
@@ -70,6 +73,7 @@ def render_board(
         catalog,
         check_explicit=view.status.value in {"check", "checkmate"}
         or bool(view.previous_move and view.previous_move.gives_check),
+        covered_mechanisms=_mechanism_source_groups(view.mechanisms, compact=True),
     )
     if attention:
         lines.append("Attention: " + "; ".join(attention))
@@ -77,6 +81,7 @@ def render_board(
         lines.append(_delta_text(
             view.previous_move, account=view.move_account, catalog=catalog,
             covered_sources=covered_sources,
+            mechanisms=view.mechanisms,
         ))
     if view.analysis is not None:
         lines.extend(_analysis_summary(view.analysis))
@@ -232,6 +237,19 @@ def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -
         return ("unavailable",)
     clauses = []
     displayed_sources = set()
+    mechanism_entries = _mechanism_entries(structure.delta, structure.mechanisms)
+    direct = _candidate_direct_effects(
+        structure.delta, include_check=structure.mechanisms.check is None,
+    )
+    if direct and structure.mechanisms.check is not None:
+        check_clause, check_sources = mechanism_entries[0]
+        mechanism_entries = ((", ".join((*direct, check_clause)), check_sources), *mechanism_entries[1:])
+        direct = ()
+    mechanism_limit = min(3, len(mechanism_entries)) if compact else len(mechanism_entries)
+    for clause, sources in mechanism_entries[:mechanism_limit]:
+        clauses.append(clause)
+    displayed_mechanisms = tuple(sources for _, sources in mechanism_entries[:mechanism_limit])
+    remaining_budget = max(0, 3 - mechanism_limit) if compact else None
     retained_defense_clauses = []
     retained_defense_sources = []
     for change in structure.defense_changes:
@@ -262,19 +280,22 @@ def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -
             )
         retained_defense_clauses.append(clause)
         retained_defense_sources.append(change.supporting_facts)
-    defense_limit = min(2, len(retained_defense_clauses)) if compact else len(retained_defense_clauses)
+    defense_limit = (
+        min(2, len(retained_defense_clauses), remaining_budget)
+        if compact else len(retained_defense_clauses)
+    )
     clauses.extend(retained_defense_clauses[:defense_limit])
     for sources in retained_defense_sources[:defense_limit]:
         displayed_sources.update(sources)
 
-    direct = _candidate_direct_effects(structure.delta)
     if direct:
         clauses.append(", ".join(direct))
 
     account_clauses = _candidate_account_clauses(
         structure.delta, structure.account, frozenset(displayed_sources),
+        displayed_mechanisms,
     )
-    remaining = max(0, 3 - defense_limit) if compact else len(account_clauses)
+    remaining = max(0, 3 - mechanism_limit - defense_limit) if compact else len(account_clauses)
     shown_account = account_clauses[:remaining]
     clauses.extend(shown_account)
 
@@ -283,6 +304,9 @@ def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -
     if compact:
         defense_omitted += len(retained_defense_clauses) - defense_limit
         account_omitted += len(account_clauses) - len(shown_account)
+    mechanism_omitted = len(mechanism_entries) - mechanism_limit
+    if mechanism_omitted:
+        clauses.append(f"{mechanism_omitted} structural mechanism(s) omitted")
     if defense_omitted:
         clauses.append(f"{defense_omitted} defense contrast(s) omitted")
     if account_omitted:
@@ -290,7 +314,7 @@ def _candidate_structure_clauses(candidate: CandidateResult, *, compact: bool) -
     return tuple(clauses)
 
 
-def _candidate_direct_effects(delta: MoveDelta) -> tuple[str, ...]:
+def _candidate_direct_effects(delta: MoveDelta, *, include_check: bool = True) -> tuple[str, ...]:
     effects = []
     if delta.captured is not None:
         effects.append(f"captures {delta.captured.piece_type} on {delta.captured.square}")
@@ -300,13 +324,14 @@ def _candidate_direct_effects(delta: MoveDelta) -> tuple[str, ...]:
         effects.append(
             f"castles with rook {delta.castling_rook.before.square}→{delta.castling_rook.after.square}"
         )
-    if delta.gives_check:
+    if delta.gives_check and include_check:
         effects.append("gives check")
     return tuple(effects)
 
 
 def _candidate_account_clauses(
     delta: MoveDelta, account: MoveAccount, displayed_sources: frozenset,
+    displayed_mechanisms: tuple[tuple, ...] = (),
 ) -> tuple[str, ...]:
     direct = {
         ConsequenceKind.CAPTURE, ConsequenceKind.PROMOTION,
@@ -317,6 +342,7 @@ def _candidate_account_clauses(
         for event in account.consequences
         if event.kind not in direct
         and not displayed_sources.intersection(event.supporting_facts)
+        and not _sources_fully_covered(event.supporting_facts, displayed_mechanisms)
     )
 
 
@@ -326,6 +352,104 @@ def _candidate_piece_list(delta: MoveDelta, pieces: tuple) -> str:
 
 def _candidate_piece_label(delta: MoveDelta, piece_id) -> str:
     return _account_piece_label(delta, piece_id)
+
+
+def _mechanism_entries(
+    delta: MoveDelta, mechanisms: MoveMechanisms | None,
+) -> tuple[tuple[str, tuple], ...]:
+    if mechanisms is None:
+        return ()
+    entries = []
+    if mechanisms.check is not None:
+        check = mechanisms.check
+        king = _account_piece_label(delta, check.checked_king)
+        if len(check.checkers) == 1:
+            checker = check.checkers[0]
+            actor = _account_piece_label(delta, checker.piece)
+            clause = (
+                f"{actor} checks {king}"
+                if checker.role.value == "direct"
+                else f"opens {actor}'s check on {king}"
+            )
+            entries.append((
+                clause,
+                (*check.supporting_facts, *checker.supporting_facts),
+            ))
+        else:
+            ordered = sorted(check.checkers, key=lambda item: item.role.value != "direct")
+            actors = _english_list(tuple(
+                _account_piece_label(delta, checker.piece)
+                + (" (discovered)" if checker.role.value == "discovered" else "")
+                for checker in ordered
+            ))
+            entries.append((
+                f"double check on {king} from {actors}",
+                (*check.supporting_facts, *(
+                    source for checker in check.checkers for source in checker.supporting_facts
+                )),
+            ))
+
+    fork_attacks = {
+        (target.actor, target.target)
+        for fork in mechanisms.forks
+        for target in fork.targets
+    }
+    for fork in mechanisms.forks:
+        actor = _account_piece_label(delta, fork.actor)
+        targets = _english_list(tuple(
+            _account_piece_label(delta, target.target) for target in fork.targets
+        ))
+        entries.append((f"{actor} geometrically forks {targets}", fork.supporting_facts))
+    for attack in mechanisms.attacks:
+        if (attack.actor, attack.target) in fork_attacks:
+            continue
+        entries.append((
+            f"{_account_piece_label(delta, attack.actor)} now geometrically attacks "
+            f"{_account_piece_label(delta, attack.target)}",
+            attack.supporting_facts,
+        ))
+    return tuple(entries)
+
+
+def _english_list(items: tuple[str, ...]) -> str:
+    if len(items) < 2:
+        return "".join(items)
+    if len(items) == 2:
+        return " and ".join(items)
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
+
+
+def _mechanism_source_groups(
+    mechanisms: MoveMechanisms | None, *, compact: bool,
+) -> tuple[tuple, ...]:
+    if mechanisms is None:
+        return ()
+    entries = _mechanism_entries_from_mechanisms(mechanisms)
+    selected = entries[:3] if compact else entries
+    return tuple(sources for _, sources in selected)
+
+
+def _mechanism_entries_from_mechanisms(
+    mechanisms: MoveMechanisms,
+) -> tuple[tuple[object, tuple], ...]:
+    """Return source-bearing placeholders without needing labels or recomputing facts."""
+    entries = []
+    if mechanisms.check is not None:
+        entries.append((mechanisms.check, (
+            *mechanisms.check.supporting_facts,
+            *(source for checker in mechanisms.check.checkers for source in checker.supporting_facts),
+        )))
+    fork_attacks = {
+        (target.actor, target.target)
+        for fork in mechanisms.forks
+        for target in fork.targets
+    }
+    entries.extend((fork, fork.supporting_facts) for fork in mechanisms.forks)
+    entries.extend(
+        (attack, attack.supporting_facts) for attack in mechanisms.attacks
+        if (attack.actor, attack.target) not in fork_attacks
+    )
+    return tuple(entries)
 
 
 def _render_material_exposure(exposure, catalog: ExplanationCatalog) -> str:
@@ -355,24 +479,40 @@ def _delta_text(
     catalog: ExplanationCatalog | None = None,
     detailed: bool = False,
     covered_sources: frozenset = frozenset(),
+    mechanisms: MoveMechanisms | None = None,
 ) -> str:
     catalog = catalog or _load_catalog()
     moved = delta.moved
     parts = [f"{delta.san}: {moved.before.piece_type} {moved.before.square}→{moved.after.square}"]
-    parts.extend(_direct_effects(delta))
+    direct = _direct_effects(delta, include_check=mechanisms is None or mechanisms.check is None)
 
-    facts = _account_changes(delta, account, covered_sources)
+    mechanism_entries = _mechanism_entries(delta, mechanisms)
+    if direct and mechanisms is not None and mechanisms.check is not None:
+        check_clause, check_sources = mechanism_entries[0]
+        mechanism_entries = ((", ".join((*direct, check_clause)), check_sources), *mechanism_entries[1:])
+        direct = ()
+    parts.extend(direct)
+    mechanism_limit = len(mechanism_entries) if detailed else min(3, len(mechanism_entries))
+    shown_mechanisms = mechanism_entries[:mechanism_limit]
+    parts.extend(clause for clause, _ in shown_mechanisms)
+
+    facts = _account_changes(
+        delta, account, covered_sources,
+        tuple(sources for _, sources in shown_mechanisms),
+    )
     if account is not None and account.omitted_count:
         facts = (*facts, _catalog_text(
             catalog, "cli.move_account_omitted", (("count", account.omitted_count),),
         ))
+    if len(mechanism_entries) > mechanism_limit:
+        facts = (*facts, f"{len(mechanism_entries) - mechanism_limit} structural mechanism(s) omitted")
     if detailed:
         raw = _relationship_changes(delta, catalog)
         return "\n".join(("; ".join(parts), *facts, *(('Raw changes:', *raw) if raw else ())))
     return "; ".join((*parts, *facts))
 
 
-def _direct_effects(delta: MoveDelta) -> tuple[str, ...]:
+def _direct_effects(delta: MoveDelta, *, include_check: bool = True) -> tuple[str, ...]:
     moved = delta.moved
     parts = []
     if delta.captured is not None:
@@ -383,13 +523,14 @@ def _direct_effects(delta: MoveDelta) -> tuple[str, ...]:
         parts.append(f"rook {rook.before.square}→{rook.after.square}")
     if delta.promoted:
         parts.append(f"promoted to {moved.after.piece_type}")
-    if delta.gives_check:
+    if delta.gives_check and include_check:
         parts.append("gives check")
     return tuple(parts)
 
 
 def _account_changes(
     delta: MoveDelta, account: MoveAccount | None, covered_sources: frozenset = frozenset(),
+    covered_mechanisms: tuple[tuple, ...] = (),
 ) -> tuple[str, ...]:
     if account is None:
         return ()
@@ -399,7 +540,11 @@ def _account_changes(
     }
     changes = []
     for event in account.consequences:
-        if event.kind in direct or covered_sources.intersection(event.supporting_facts):
+        if (
+            event.kind in direct
+            or covered_sources.intersection(event.supporting_facts)
+            or _sources_fully_covered(event.supporting_facts, covered_mechanisms)
+        ):
             continue
         changes.append(_account_event_clause(delta, event))
     return tuple(changes)
@@ -453,6 +598,7 @@ def _account_relationship(delta: MoveDelta, event) -> str:
 def _attention_text(
     facts, attention: AttentionSelection | None, delta: MoveDelta | None,
     catalog: ExplanationCatalog | None, *, check_explicit: bool,
+    covered_mechanisms: tuple[tuple, ...] = (),
 ):
     if attention is None:
         return (), frozenset()
@@ -460,6 +606,8 @@ def _attention_text(
     covered = set()
     for item in attention.items:
         if item.kind is AttentionKind.CHECK and check_explicit:
+            continue
+        if _sources_fully_covered(item.move_sources, covered_mechanisms):
             continue
         subject = _facts_piece_label(facts, item.subject)
         actor = _facts_piece_label(facts, item.actor)
@@ -489,6 +637,17 @@ def _facts_piece_label(facts, piece_id) -> str:
         return "piece"
     placement = next((item for item in facts.pieces if item.piece_id == piece_id), None)
     return f"{placement.piece_type} {placement.square}" if placement is not None else "piece"
+
+
+def _current_check_clause(facts) -> str:
+    king = _facts_piece_label(facts, facts.checked_king)
+    checkers = _english_list(tuple(_facts_piece_label(facts, piece) for piece in facts.checkers))
+    prefix = "double check" if len(facts.checkers) > 1 else "check"
+    return f"{prefix} on {king} by {checkers}"
+
+
+def _sources_fully_covered(sources: tuple, groups: tuple[tuple, ...]) -> bool:
+    return bool(sources) and any(set(sources) <= set(group) for group in groups)
 
 
 def _attention_relationship(delta: MoveDelta | None, item) -> str:
@@ -719,7 +878,10 @@ def _piece_label(piece: PiecePlacement) -> str:
 
 def render_changes(view: SessionView, catalog: ExplanationCatalog | None = None) -> str:
     return (
-        _delta_text(view.previous_move, account=view.move_account, catalog=catalog, detailed=True)
+        _delta_text(
+            view.previous_move, account=view.move_account, catalog=catalog,
+            detailed=True, mechanisms=view.mechanisms,
+        )
         if view.previous_move is not None
         else _catalog_text(catalog, "cli.no_previous_move")
     )
@@ -738,6 +900,7 @@ def render_line_preview(
         preview.facts, preview.attention, preview.previous_move,
         catalog,
         check_explicit=bool(preview.previous_move and preview.previous_move.gives_check),
+        covered_mechanisms=_mechanism_source_groups(preview.mechanisms, compact=True),
     )
     if attention:
         lines.append("Attention: " + "; ".join(attention))
@@ -745,6 +908,7 @@ def render_line_preview(
         _delta_text(
             preview.previous_move, account=preview.move_account, catalog=catalog,
             covered_sources=covered_sources,
+            mechanisms=preview.mechanisms,
         ) if preview.previous_move is not None else _catalog_text(catalog, "cli.candidate_line_root")
     )
     return "\n".join(lines)

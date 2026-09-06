@@ -279,7 +279,7 @@ def test_quiet_move_uses_connected_account_and_keeps_raw_changes_in_explicit_det
         ("K7/8/8/8/4pP2/8/8/7k b - f3 0 1", "exf3", ("captured pawn on f4",)),
         ("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", "O-O", ("rook h1→f1",)),
         ("r3k2r/8/8/8/8/8/8/R3K2R b KQkq - 0 1", "O-O-O", ("rook a8→d8",)),
-        ("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a8=Q+", ("promoted to queen", "gives check")),
+        ("4k3/P7/8/8/8/8/8/4K3 w - - 0 1", "a8=Q+", ("promoted to queen", "queen a8 checks king e8")),
     ),
 )
 def test_compact_account_keeps_mandatory_direct_move_effects(fen, move, effects) -> None:
@@ -333,7 +333,7 @@ def test_direct_effects_remain_visible_when_three_structural_account_slots_are_s
 
     assert "captured rook on a8" in output
     assert "promoted to queen" in output
-    assert "gives check" in output
+    assert "queen a8 checks king e8" in output
     assert "queen a8 is now unguarded" in output
     assert "queen a8 is pinned to king e8" in output
     assert "queen a8 now controls b8" in output
@@ -346,7 +346,7 @@ def test_discovered_check_does_not_name_the_moving_bishop_as_checker() -> None:
 
     output, _ = execute(session, "move Bc4")
 
-    assert "gives check" in output
+    assert "opens rook e1's check on king e8" in output
     assert "bishop gives check" not in output
 
 
@@ -653,10 +653,10 @@ def test_same_subject_pin_is_retained_when_unchanged_defense_has_no_overlapping_
     assert "leaves knight e7 defense unchanged" in bb5
     assert "knight e7 is pinned to king e8" not in bb5
     assert "knight e7 is pinned to king e8" in details
-    assert "4 move consequence(s) omitted" in bb5
+    assert "5 move consequence(s) omitted" in bb5
     summary = bb5.split("not available  ", 1)[1]
     substantive = [clause for clause in summary.split("; ") if not clause.endswith("omitted")]
-    assert len(substantive) == 4
+    assert len(substantive) == 3
 
 
 @pytest.mark.parametrize(
@@ -668,7 +668,7 @@ def test_same_subject_pin_is_retained_when_unchanged_defense_has_no_overlapping_
         ),
         (
             "4k3/P7/8/8/8/8/8/4K3 w - - 0 1", ("a7a8q",), ("a8=Q+",),
-            "a8=Q+", "promotes to queen, gives check",
+            "a8=Q+", "promotes to queen, queen a8 checks king e8",
         ),
         (
             "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1", ("e1g1",), ("O-O",),
@@ -676,7 +676,7 @@ def test_same_subject_pin_is_retained_when_unchanged_defense_has_no_overlapping_
         ),
         (
             "4k3/8/8/8/8/8/4B3/4R2K w - - 0 1", ("e2c4",), ("Bc4+",),
-            "Bc4+", "gives check",
+            "Bc4+", "opens rook e1's check on king e8",
         ),
     ),
 )

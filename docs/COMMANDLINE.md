@@ -204,31 +204,39 @@ perspective labels; their documented White-positive convention is unchanged.
 
 Board and candidate-line previews lead the previous-move account with SAN and
 always retain direct capture, promotion, castling, and check effects. They then
-show the bounded connected consequences supplied by the shared application
-view, such as a newly unguarded piece or an opened slider line. When the shared
+show observed check and attack mechanisms supplied by the shared application
+view before other connected consequences, such as a newly unguarded piece or an
+opened slider line. Check text names the actual checker or checkers and identifies
+direct and discovered roles when the preceding move establishes them. Structural
+forks include every geometrically attacked target, including a checked king, but
+do not claim that a target is capturable or won. When the shared
 account omits additional consequences, compact output reports the count and
 points to `changes` for full raw details; `changes` retains the complete raw
-relationship categories. These statements describe recorded move effects and geometric
-relationships without asserting tactical wins, intent, or the identity of a
-discovered checker.
+relationship categories. These statements describe recorded move effects and
+geometric relationships without asserting tactical wins or intent.
 
 `Attention:` presents the bounded selection already attached to the current
 session or candidate-line view. It can identify the checked king, attacked and
 geometrically undefended pieces, lost defense under attack, pins, and opened or
 blocked slider lines. It does not run another query or claim that a piece is
 won, a move is safe, or a geometric defender can legally respond. When an
-attention item and the connected move account cite the same raw move facts, the
-compact board shows that relationship once. Direct move effects remain in the
-SAN header, and `changes` remains the source for full raw details.
+attention item, mechanism, and connected move account cite the same complete set
+of raw move facts, the compact board shows that relationship once. Sharing only
+one source does not suppress a distinct fact, such as a pin that also establishes
+an attack. Direct move effects remain in the SAN header, and `changes` remains
+the source for full raw details.
 
 A completed result shows its state and coverage, current-position check or
 legal-mate facts, and then the candidate table. Bounded local assessments follow
 the table. Candidate rows lead with the shared immediate root structure. When selected
 roots differ in a piece's geometric defenders, the row identifies added,
 removed, or replaced defender identities; it says defense is unchanged only
-when the shared comparison records equality with another differing root. One or
-two such contrasts precede remaining bounded root-account effects. Compact rows
-show at most three structural clauses plus one combined direct-effect clause.
+when the shared comparison records equality with another differing root. Check,
+attack, and fork mechanisms precede one or two such contrasts and remaining
+bounded root-account effects. Compact rows show at most three structural clauses
+plus one combined direct-effect clause. Check mechanisms absorb the generic check
+effect so the row does not repeat it. Fork and attack clauses remain geometric
+even when their actor is pinned.
 Root-local omission counts stay explicit. A candidate without shared root
 structure says that structure is unavailable. Ordinary captures and checks later in a
 principal variation remain in `details` instead of displacing immediate
