@@ -116,6 +116,10 @@ class MoveDelta:
     gives_check: bool
     before_pieces: tuple[PiecePlacement, ...]
     after_pieces: tuple[PiecePlacement, ...]
+    checked_king: PieceId | None = None
+    checked_king_square: SquareRef | None = None
+    checkers: tuple[PieceId, ...] = ()
+    checker_squares: tuple[SquareRef, ...] = ()
 
 
 _SLIDERS = {"bishop", "rook", "queen"}
@@ -230,6 +234,7 @@ def _move_delta_from_facts(
     rays_added, rays_removed = _fact_changes(before.latent_rays, after.latent_rays, _latent_ray_key)
     before_types = {item.piece_id: item.piece_type for item in before.pieces}
     after_types = {item.piece_id: item.piece_type for item in after.pieces}
+    after_squares = {item.piece_id: item.square for item in after.pieces}
     return MoveDelta(
         uci=uci,
         san=legal.san,
@@ -254,6 +259,14 @@ def _move_delta_from_facts(
         gives_check=after.checked_king is not None,
         before_pieces=before.pieces,
         after_pieces=after.pieces,
+        checked_king=after.checked_king,
+        checked_king_square=(
+            SquareRef(after.position_id, after_squares[after.checked_king])
+            if after.checked_king is not None
+            else None
+        ),
+        checkers=after.checkers,
+        checker_squares=tuple(SquareRef(after.position_id, after_squares[piece]) for piece in after.checkers),
     )
 
 

@@ -347,11 +347,17 @@ controller state. Interfaces cannot restart obsolete analysis by returning a
 previously displayed snapshot.
 
 The interface-neutral serialization adapter renders the shared application view
-as one `schema_version: 3` JSON snapshot; the CLI delegates to it rather than
+as one `schema_version: 4` JSON snapshot; the CLI delegates to it rather than
 owning the wire shape. Squares use algebraic coordinates, moves carry
 UCI and SAN, and scores use tagged centipawn or mate values with explicit
 perspective. Progress belongs on stderr and command results on stdout. A later
 GUI consumes the same semantic references to draw arrows and highlights.
+Schema version 4 retains the prior fields and adds explicit check roles to move
+deltas and continuation consequences: `checked_king`, `checked_king_square`,
+`checkers`, and `checker_squares`. Check squares refer to the resulting position.
+`line.check` explanation pieces now identify actual checkers; the mover remains
+separate in the referenced continuation consequence. Generic involved-piece
+collections must never be interpreted as a substitute for these explicit roles.
 Schema version 2 adds identity-bearing piece contacts, geometrically undefended
 pieces, and latent slider rays to position facts and their added/removed forms to
 move deltas. These remain geometric observations rather than tactical ownership

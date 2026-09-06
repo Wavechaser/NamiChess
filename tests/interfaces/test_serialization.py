@@ -25,7 +25,7 @@ def test_shared_serializer_preserves_schema_one_session_without_analysis() -> No
     serialized = serialize_session_view(view)
     payload = json.loads(serialized)
 
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert payload["analysis"] is None
     assert payload["session"]["analysis"] is None
     assert payload["session"]["position"]["current_fen"] == "7k/8/8/8/8/8/8/K7 w - - 0 1"
@@ -75,7 +75,7 @@ def test_schema_three_serializes_structural_relationships() -> None:
     payload = json.loads(serialize_session_view(view))
     facts = payload["session"]["facts"]
 
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert {contact["kind"] for contact in facts["contacts"]} == {"attack", "defend"}
     assert isinstance(facts["geometrically_undefended"], list)
     assert isinstance(facts["latent_rays"], list)

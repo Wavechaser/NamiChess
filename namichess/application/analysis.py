@@ -513,7 +513,10 @@ def _assemble(
                     exrefs.append(eid)
                 if consequence.gives_check:
                     eid = f"{candidate_id}:ply-{consequence.ply}:check"
-                    explanations.append(Explanation(eid, "line.check", (("san", consequence.san),), pieces=(consequence.mover,), moves=(consequence.uci,), evidence_refs=(evidence_id,)))
+                    check_squares = consequence.checker_squares
+                    if consequence.checked_king_square is not None:
+                        check_squares += (consequence.checked_king_square,)
+                    explanations.append(Explanation(eid, "line.check", (("san", consequence.san),), pieces=consequence.checkers, squares=check_squares, moves=(consequence.uci,), evidence_refs=(evidence_id,)))
                     exrefs.append(eid)
             if item.score.mate is not None:
                 eid = f"{candidate_id}:reported-mate"

@@ -30,6 +30,10 @@ class LineConsequence:
     recapture: bool
     promotion: str | None
     material_delta_white: int
+    checked_king: PieceId | None = None
+    checked_king_square: SquareRef | None = None
+    checkers: tuple[PieceId, ...] = ()
+    checker_squares: tuple[SquareRef, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +101,10 @@ def line_consequences(board: chess.Board, pv: tuple[str, ...], deltas: tuple[Mov
             recapture=capture_square is not None and capture_square == previous_destination,
             promotion=delta.moved.after.piece_type if delta.promoted else None,
             material_delta_white=white_delta,
+            checked_king=delta.checked_king,
+            checked_king_square=delta.checked_king_square,
+            checkers=delta.checkers,
+            checker_squares=delta.checker_squares,
         ))
         previous_destination = move.to_square
         replay.push(move)

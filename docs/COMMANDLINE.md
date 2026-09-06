@@ -248,11 +248,17 @@ the current input. `quit` does not wait for a full search.
 
 ## JSON snapshot
 
-`json` emits one object with `schema_version: 3`, `session`, and `analysis`.
+`json` emits one object with `schema_version: 4`, `session`, and `analysis`.
 The CLI delegates this shape to the shared interface serialization adapter so a
 future GUI consumer does not need to import CLI rendering code. Schema version 2
 preserves every version-1 field and encoding while adding structural facts,
 local evidence and assessments, and immediate navigation references.
+Schema version 4 retains previous fields and adds `checked_king`,
+`checked_king_square`, `checkers`, and `checker_squares` to move deltas and
+continuation consequences. Checker and king squares belong to the resulting
+position. A `line.check` explanation now references the actual checking pieces;
+its continuation consequence retains the mover separately. Consumers should
+use those explicit roles for highlights, including discovered and double check.
 Schema version 3 preserves those fields and adds an optional bounded
 `move_account` beside `previous_move`. Each consequence carries typed piece and
 position-scoped square references plus `supporting_facts` that resolve to the
@@ -303,7 +309,7 @@ nested fields remain named typed values rather than encoded prose:
 
 ```json
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "session": {
     "revision": 3,
     "position": {"current_fen": "...", "moves": ["e2e4"]},

@@ -545,7 +545,7 @@ def test_text_and_json_share_current_analysis_candidate() -> None:
     assert "After this move" in text
     assert "Fact: [Ka2]" not in text
     assert text.split("#  Rank", 1)[1].count("After this move") == 1
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert payload["analysis"]["candidates"][0]["candidate_id"] == "candidate:a1a2"
     assert payload["analysis"]["candidates"][0]["score"]["centipawns"] == 0
     assert payload["analysis"]["candidates"][0]["score"]["mate"] is None
